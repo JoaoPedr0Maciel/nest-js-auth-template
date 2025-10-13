@@ -1,13 +1,14 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
-import { AuthModule } from './auth/auth.module';
-import { UsersModule } from './users/users.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { UsersModule } from './modules/users/users.module';
 import { RedisModule } from './redis/redis.module';
-import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
+import { CampaignModule } from './modules/campaign/campaign.module';
+import { ContributionModule } from './modules/contribution/contribution.module';
+import { TransactionModule } from './modules/transaction/transaction.module';
 
 @Module({
   imports: [
@@ -18,14 +19,11 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     RedisModule,
     AuthModule,
     UsersModule,
+    CampaignModule,
+    ContributionModule,
+    TransactionModule,
   ],
   controllers: [AppController],
-  providers: [
-    AppService,
-    {
-      provide: APP_GUARD,
-      useClass: JwtAuthGuard,
-    },
-  ],
+  providers: [AppService],
 })
 export class AppModule { }

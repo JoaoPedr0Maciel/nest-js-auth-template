@@ -7,36 +7,24 @@ async function main() {
   // Hash password
   const hashedPassword = await bcrypt.hash('123456', 10);
 
-  // Create MASTER user
-  const masterUser = await prisma.user.upsert({
-    where: { email: 'master@example.com' },
-    update: {},
-    create: {
-      email: 'master@example.com',
-      password: hashedPassword,
-      name: 'Master User',
-      role: Role.MASTER,
-    },
-  });
-
-  // Create ADMIN user
+  // Create USER user
   const adminUser = await prisma.user.upsert({
-    where: { email: 'admin@example.com' },
+    where: { phone: '+244924123456' },
     update: {},
     create: {
-      email: 'admin@example.com',
+      phone: '+244924123456',
       password: hashedPassword,
-      name: 'Admin User',
-      role: Role.ADMIN,
+      name: 'User User',
+      role: Role.USER,
     },
   });
 
   // Create regular USER
   const regularUser = await prisma.user.upsert({
-    where: { email: 'user@example.com' },
+    where: { phone: '+244925123456' },
     update: {},
     create: {
-      email: 'user@example.com',
+      phone: '+244925123456',
       password: hashedPassword,
       name: 'Regular User',
       role: Role.USER,
@@ -44,11 +32,15 @@ async function main() {
   });
 
   console.log('Seed data created successfully:');
-  console.log('Master User:', masterUser);
+  console.log('Admin User:', adminUser);
   console.log('Admin User:', adminUser);
   console.log('Regular User:', regularUser);
   console.log('\nDefault credentials for all users:');
   console.log('Password: 123456');
+  console.log('\nPhone numbers (Angola format):');
+  console.log('Master: +244923123456');
+  console.log('Admin: +244924123456');
+  console.log('User: +244925123456');
 }
 
 main()

@@ -12,19 +12,105 @@ datasource db {
 
 enum Role {
   USER
-  MASTER
   ADMIN
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  name      String
-  role      Role     @default(USER)
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id               String         @id @default(uuid())
+  phone            String         @unique
+  password         String
+  name             String
+  balance          Int            @default(0)
+  isPhoneVerified  Boolean        @default(false)
+  verificationCode String?
+  role             Role           @default(USER)
+  isActive         Boolean        @default(true)
+  Campaign         Campaign[]
+  Contribution     Contribution[]
+  Transaction      Transaction[]
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
 
   @@map("users")
+}
+
+enum ForWho {
+  FOR_ME
+  FOR_A_PARENT
+  FOR_A_FRIEND
+  FOR_A_ANIMAL
+  FOR_MY_STUDENT
+  OTHERS
+}
+
+enum CampaignCategory {
+  ANIMALS
+  ART
+  EDUCATION
+  HEALTH
+  HOUSING
+  TRANSPORTATION
+  FOOD
+  CLOTHES
+  ORGANIZATION
+  SOCIAL_PROJECTS
+  ACCIDENTS
+  EVENTS
+  TRAVEL
+  OTHER
+}
+
+model Campaign {
+  id           String           @id @default(uuid())
+  userId       String
+  user         User             @relation(fields: [userId], references: [id])
+  slug         String           @unique
+  image        String?
+  name         String
+  description  String
+  targetValue  Int
+  currentValue Int              @default(0)
+  isActive     Boolean          @default(true)
+  forWho       ForWho           @default(FOR_ME)
+  category     CampaignCategory @default(OTHER)
+  Contribution Contribution[]
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@map("campaigns")
+}
+
+model Contribution {
+  id            String      @id @default(uuid())
+  campaignId    String
+  campaign      Campaign    @relation(fields: [campaignId], references: [id])
+  transactionId String      @unique
+  transaction   Transaction @relation(fields: [transactionId], references: [id])
+  userId        String
+  user          User        @relation(fields: [userId], references: [id])
+  amount        Int
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@map("contributions")
+}
+
+enum TransactionStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+model Transaction {
+  id           String            @id @default(uuid())
+  userId       String
+  payer        User              @relation(fields: [userId], references: [id])
+  amount       Int
+  status       TransactionStatus @default(PENDING)
+  reference    String
+  Contribution Contribution?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@map("transactions")
 }

@@ -7,7 +7,11 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   // Enable CORS
-  app.enableCors();
+  app.enableCors({
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  });
 
   // Global validation pipe
   app.useGlobalPipes(
@@ -20,10 +24,23 @@ async function bootstrap() {
 
   // Swagger configuration
   const config = new DocumentBuilder()
-    .setTitle('NestJS Auth Template')
-    .setDescription('Template with JWT authentication and role-based authorization')
+    .setTitle('Vax Vaquinha API')
+    .setDescription('API para sistema de campanhas de vaquinha com autenticação JWT e autorização baseada em roles')
     .setVersion('1.0')
-    .addBearerAuth()
+    .addTag('auth', 'Endpoints de autenticação e autorização')
+    .addTag('campaigns', 'Endpoints para gerenciamento de campanhas')
+    .addTag('users', 'Endpoints para gerenciamento de usuários')
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        name: 'JWT',
+        description: 'Enter JWT token',
+        in: 'header',
+      },
+      'JWT-auth'
+    )
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
