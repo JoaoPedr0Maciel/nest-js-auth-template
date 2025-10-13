@@ -34,6 +34,6 @@ export class CampaignQueryDto {
     default: true,
   })
   @IsOptional()
-  @IsBoolean()
-  isActive?: boolean;
+  @IsString()
+  isActive?: string;
 }

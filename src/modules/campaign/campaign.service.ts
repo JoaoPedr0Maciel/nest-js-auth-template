@@ -63,7 +63,6 @@ export class CampaignService {
           }),
           await prisma.campaign.count({
             where,
-            ...paginationQuery({ limit, page }),
           }),
         ];
       },
