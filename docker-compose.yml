@@ -1,10 +1,10 @@
 services:
   postgres:
     image: postgres:latest
-    container_name: vax-postgres
+    container_name: nest-template-postgres
     restart: always
     environment:
-      POSTGRES_DB: vax
+      POSTGRES_DB: nest-template
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
@@ -12,11 +12,11 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - vax-network
+      - nest-template-network
 
   pgadmin:
     image: dpage/pgadmin4:latest
-    container_name: vax-pgadmin
+    container_name: nest-template-pgadmin
     restart: always
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@admin.com
@@ -29,18 +29,18 @@ services:
     depends_on:
       - postgres
     networks:
-      - vax-network
+      - nest-template-network
 
   redis:
     image: redis:latest
-    container_name: vax-redis
+    container_name: nest-template-redis
     restart: always
     ports:
       - '6379:6379'
     volumes:
       - redis_data:/data
     networks:
-      - vax-network
+      - nest-template-network
 
 volumes:
   postgres_data:
@@ -48,5 +48,5 @@ volumes:
   redis_data:
 
 networks:
-  vax-network:
+  nest-template-network:
     driver: bridge

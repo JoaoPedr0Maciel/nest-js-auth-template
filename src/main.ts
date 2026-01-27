@@ -24,11 +24,10 @@ async function bootstrap() {
 
   // Swagger configuration
   const config = new DocumentBuilder()
-    .setTitle('Vax Vaquinha API')
-    .setDescription('API para sistema de campanhas de vaquinha com autenticação JWT e autorização baseada em roles')
+    .setTitle('NestJS Auth Template API')
+    .setDescription('Template de API NestJS com autenticação JWT e autorização baseada em roles')
     .setVersion('1.0')
     .addTag('auth', 'Endpoints de autenticação e autorização')
-    .addTag('campaigns', 'Endpoints para gerenciamento de campanhas')
     .addTag('users', 'Endpoints para gerenciamento de usuários')
     .addBearerAuth(
       {

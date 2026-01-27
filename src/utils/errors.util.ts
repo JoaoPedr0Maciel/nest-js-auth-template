@@ -8,14 +8,4 @@ export const errors = {
     phone_not_valid: new BadRequestException('User phone not valid'),
     password_not_valid: new BadRequestException('User password not valid'),
   },
-  campaign: {
-    not_found: new NotFoundException('Campaign not found'),
-    already_exists: new ConflictException('Campaign already exists'),
-    phone_already_exists: new ConflictException('Campaign phone already exists'),
-    phone_not_valid: new BadRequestException('Campaign phone not valid'),
-    password_not_valid: new BadRequestException('Campaign password not valid'),
-  },
-  contribution: {
-    not_found: new NotFoundException('Contribution not found'),
-  },
 }
