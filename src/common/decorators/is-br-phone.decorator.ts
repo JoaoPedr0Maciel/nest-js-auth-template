@@ -3,12 +3,12 @@ import {
   ValidationOptions,
   ValidationArguments,
 } from 'class-validator';
-import { PhoneValidationUtil } from '../utils/phone-validation.util';
+import { isValidBrazilPhone } from '../utils/phone-validation.util';
 
-export function IsAngolaPhone(validationOptions?: ValidationOptions) {
+export function IsBrazilPhone(validationOptions?: ValidationOptions) {
   return function (object: Object, propertyName: string) {
     registerDecorator({
-      name: 'isAngolaPhone',
+      name: 'isBrazilPhone',
       target: object.constructor,
       propertyName: propertyName,
       options: validationOptions,
@@ -16,11 +16,11 @@ export function IsAngolaPhone(validationOptions?: ValidationOptions) {
         validate(value: any, args: ValidationArguments) {
           return (
             typeof value === 'string' &&
-            PhoneValidationUtil.isValidAngolaPhone(value)
+            isValidBrazilPhone(value)
           );
         },
         defaultMessage(args: ValidationArguments) {
-          return `${args.property} deve ser um número de telefone válido de Angola (formato: +244XXXXXXXXX)`;
+          return `${args.property} deve ser um número de telefone válido de Brasil (formato: +55XXXXXXXXX)`;
         },
       },
     });

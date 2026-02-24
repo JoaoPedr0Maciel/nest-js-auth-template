@@ -1,5 +1,5 @@
 import { IsNumberString, IsOptional } from "class-validator";
-import { PaginationParams, PaginationResult } from "../types/pagination";
+import { PaginationParams, PaginationResult } from "./pagination.types";
 
 export class Pagination {
   @IsNumberString()
@@ -32,7 +32,6 @@ export function paginationQuery(pagination: Pagination): { skip: number; take: n
     take: parseInt(take),
   };
 }
-
 
 export function getPagination(params: PaginationParams): PaginationResult {
   const { page, limit } = defaultPagination({ limit: params.limit?.toString(), page: params.page?.toString() });

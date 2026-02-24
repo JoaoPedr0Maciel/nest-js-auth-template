@@ -1,9 +1,9 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from '../../infra/prisma/prisma.service';
 import { Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { PhoneValidationUtil } from '../../common/utils/phone-validation.util';
-import { errors } from 'src/utils/errors.util';
+import { errors } from '../../common/errors/errors';
 
 @Injectable()
 export class UsersService {

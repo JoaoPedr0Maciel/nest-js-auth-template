@@ -5,41 +5,25 @@ import * as bcrypt from 'bcrypt';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { Role } from '@prisma/client';
-import { PhoneValidationUtil } from '../../common/utils/phone-validation.util';
-import { PrismaService } from '../../prisma/prisma.service';
-import { errors } from 'src/utils/errors.util';
+import { PrismaService } from '../../infra/prisma/prisma.service';
+import { errors } from 'src/common/errors/errors';
+import type { JwtPayload } from 'src/common/interfaces/jwt-payload.interface';
 
 @Injectable()
 export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
-  ) {}
-
-  async validateUser(phone: string, password: string): Promise<any> {
-    const normalizedPhone = PhoneValidationUtil.normalizePhone(phone);
-
-    const user = await this.prisma.user.findUnique({
-      where: { phone: normalizedPhone },
-    });
-
-    if (
-      user &&
-      user.isActive &&
-      (await bcrypt.compare(password, user.password))
-    ) {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { password, ...result } = user;
-      return result;
-    }
-    return null;
-  }
+  ) { }
 
   async login(loginDto: LoginDto) {
-    const user = await this.validateUser(loginDto.phone, loginDto.password);
-    if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
+    const user = await this.prisma.user.findUnique({
+      where: {
+        email: loginDto.email,
+      },
+    })
+
+    if (!user) throw errors.user.not_found;
 
     const payload = {
       phone: user.phone,
@@ -60,26 +44,25 @@ export class AuthService {
   }
 
   async register(registerDto: RegisterDto) {
-    const normalizedPhone = PhoneValidationUtil.normalizePhone(
-      registerDto.phone,
-    );
-
     const existingUser = await this.prisma.user.findUnique({
-      where: { phone: normalizedPhone },
+      where: {
+        email: registerDto.email
+      },
     });
 
     if (existingUser) {
-      throw errors.user.phone_already_exists;
+      throw errors.user.email_already_exists;
     }
 
     const hashedPassword = await bcrypt.hash(registerDto.password, 10);
 
     const user = await this.prisma.user.create({
       data: {
-        phone: normalizedPhone,
+        email: registerDto.email,
         password: hashedPassword,
         name: registerDto.name,
         role: Role.USER,
+        phone: registerDto.phone,
       },
       select: {
         id: true,
@@ -90,11 +73,11 @@ export class AuthService {
       },
     });
 
-    const payload = {
-      phone: user.phone,
-      sub: user.id,
-      role: user.role,
-      name: user.name,
+    const payload: JwtPayload = {
+      id: user.id,
+      name: registerDto.name,
+      phone: registerDto.phone,
+      email: registerDto.email,
     };
 
     return {

@@ -1,15 +1,14 @@
-import { IsNotEmpty, IsString, MinLength } from 'class-validator';
-import { IsAngolaPhone } from '../../../common/decorators/is-angola-phone.decorator';
+import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class LoginDto {
   @ApiProperty({
-    description: 'Número de telefone angolano (formato: +244xxxxxxxxx)',
-    example: '+244923456789',
+    description: 'Email do usuário',
+    example: 'user@example.com',
   })
-  @IsAngolaPhone()
+  @IsEmail()
   @IsNotEmpty()
-  phone: string;
+  email: string;
 
   @ApiProperty({
     description: 'Senha do usuário (mínimo 6 caracteres)',

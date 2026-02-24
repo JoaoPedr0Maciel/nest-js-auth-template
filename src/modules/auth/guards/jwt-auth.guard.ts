@@ -7,9 +7,10 @@ import {
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../../../prisma/prisma.service';
+import { PrismaService } from '../../../infra/prisma/prisma.service';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
-import { JwtPayload, RequestUser } from '../interfaces/user.interface';
+import { RequestUser } from '../interfaces/user.interface';
+import type { JwtPayload } from 'src/common/interfaces/jwt-payload.interface';
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -18,7 +19,7 @@ export class JwtAuthGuard implements CanActivate {
     private jwtService: JwtService,
     private configService: ConfigService,
     private prisma: PrismaService,
-  ) {}
+  ) { }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
@@ -43,12 +44,12 @@ export class JwtAuthGuard implements CanActivate {
         secret: jwtSecret,
       });
 
-      if (!payload.sub) {
+      if (!payload.id) {
         throw new UnauthorizedException('Invalid token payload');
       }
 
       const user = await this.prisma.user.findUnique({
-        where: { id: payload.sub },
+        where: { id: payload.id },
         select: {
           id: true,
           phone: true,
@@ -67,7 +68,7 @@ export class JwtAuthGuard implements CanActivate {
       }
 
       // Adiciona o usuário na request
-      request.user = user as RequestUser;
+      (request as { user?: RequestUser }).user = user as RequestUser;
 
       return true;
     } catch (error) {

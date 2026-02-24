@@ -1,14 +1,21 @@
-import { IsNotEmpty, IsString, MinLength } from 'class-validator';
-
-import { IsAngolaPhone } from '../../../common/decorators/is-angola-phone.decorator';
+import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { IsBrazilPhone } from '../../../common/decorators/is-br-phone.decorator';
 
 export class RegisterDto {
   @ApiProperty({
-    description: 'Número de telefone angolano (formato: +244xxxxxxxxx)',
-    example: '+244923456789',
+    description: 'Email do usuário',
+    example: 'user@example.com',
   })
-  @IsAngolaPhone()
+  @IsEmail()
+  @IsNotEmpty()
+  email: string;
+
+  @ApiProperty({
+    description: 'Número de telefone brasileiro (formato: +55XXXXXXXXX)',
+    example: '+5511999999999',
+  })
+  @IsBrazilPhone()
   @IsNotEmpty()
   phone: string;
 

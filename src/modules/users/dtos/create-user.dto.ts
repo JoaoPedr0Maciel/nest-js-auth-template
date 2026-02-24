@@ -1,5 +1,5 @@
 import { IsNotEmpty, IsString, MinLength } from "class-validator";
-import { IsAngolaPhone } from "../../../common/decorators/is-angola-phone.decorator";
+import { IsAngolaPhone } from "../../../common/decorators/is-br-phone.decorator";
 import { ApiProperty } from "@nestjs/swagger";
 
 export class CreateUserDto {
