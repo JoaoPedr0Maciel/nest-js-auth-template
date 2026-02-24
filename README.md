@@ -6,7 +6,7 @@ Um template completo do NestJS com autenticação JWT, autorização baseada em 
 
 - ✅ **Autenticação JWT** com refresh tokens
 - ✅ **Hash de senhas** com bcrypt
-- ✅ **Autorização baseada em roles** (USER, ADMIN, MASTER)
+- ✅ **Autorização baseada em roles** (USER, ADMIN)
 - ✅ **Decorator @Roles** para controle de acesso
 - ✅ **Guards personalizados** (JWT, Local, Roles)
 - ✅ **Decorator @CurrentUser** para obter usuário atual
@@ -22,36 +22,59 @@ Um template completo do NestJS com autenticação JWT, autorização baseada em 
 
 ```
 src/
-├── auth/
+├── common/                      # Código compartilhado entre módulos
 │   ├── decorators/
-│   │   ├── current-user.decorator.ts    # @CurrentUser()
-│   │   ├── public.decorator.ts          # @Public()
-│   │   └── roles.decorator.ts           # @Roles()
-│   ├── guards/
-│   │   ├── jwt-auth.guard.ts           # Guard JWT
-│   │   ├── local-auth.guard.ts         # Guard Local
-│   │   └── roles.guard.ts              # Guard de Roles
-│   ├── strategies/
-│   │   ├── jwt.strategy.ts             # Estratégia JWT
-│   │   └── local.strategy.ts           # Estratégia Local
-│   ├── dto/
-│   │   ├── login.dto.ts                # DTO de Login
-│   │   └── register.dto.ts             # DTO de Registro
-│   ├── auth.controller.ts              # Controller de Auth
-│   ├── auth.service.ts                 # Service de Auth
-│   └── auth.module.ts                  # Módulo de Auth
-├── users/
-│   ├── users.controller.ts             # Controller de Users
-│   ├── users.service.ts                # Service de Users
-│   └── users.module.ts                 # Módulo de Users
-├── prisma/
-│   ├── prisma.service.ts               # Service do Prisma
-│   └── prisma.module.ts                # Módulo do Prisma
-├── redis/
-│   ├── redis.service.ts                # Service Redis
-│   └── redis.module.ts                 # Módulo Redis
-└── main.ts                             # Entrada da aplicação
+│   │   └── is-br-phone.decorator.ts   # Validação de telefone BR
+│   ├── errors/
+│   │   └── errors.ts                 # Exceções reutilizáveis (user not found, etc.)
+│   ├── interfaces/
+│   │   └── jwt-payload.interface.ts  # Tipos JWT
+│   ├── pagination/
+│   │   ├── pagination.types.ts       # Interfaces de paginação
+│   │   ├── pagination.ts             # DTO e helpers de paginação
+│   │   └── index.ts
+│   └── utils/
+│       └── phone-validation.util.ts  # Utilitários de validação
+├── infra/                        # Configurações de infraestrutura (DB, cache)
+│   ├── prisma/
+│   │   ├── prisma.service.ts         # Service do Prisma
+│   │   └── prisma.module.ts          # Módulo do Prisma
+│   └── redis/
+│       ├── redis.service.ts          # Service Redis
+│       └── redis.module.ts            # Módulo Redis
+├── modules/
+│   ├── auth/
+│   │   ├── decorators/
+│   │   │   ├── current-user.decorator.ts   # @CurrentUser()
+│   │   │   ├── public.decorator.ts         # @Public()
+│   │   │   └── roles.decorator.ts          # @Roles()
+│   │   ├── guards/
+│   │   │   ├── jwt-auth.guard.ts           # Guard JWT
+│   │   │   └── roles.guard.ts              # Guard de Roles
+│   │   ├── dto/
+│   │   │   ├── login.dto.ts
+│   │   │   └── register.dto.ts
+│   │   ├── auth.controller.ts
+│   │   ├── auth.service.ts
+│   │   ├── auth.module.ts
+│   │   └── interfaces/
+│   │       └── user.interface.ts
+│   └── users/
+│       ├── dtos/
+│       │   ├── create-user.dto.ts
+│       │   └── update-user.dto.ts
+│       ├── users.controller.ts
+│       ├── users.service.ts
+│       └── users.module.ts
+├── app.module.ts
+├── app.controller.ts
+├── app.service.ts
+└── main.ts
 ```
+
+- **`common/`** – decorators, erros, paginação, interfaces e utils usados por vários módulos.
+- **`infra/`** – acesso a dados e serviços externos (Prisma, Redis). Schema e migrations do Prisma ficam na pasta `prisma/` na raiz do projeto.
+- **`modules/`** – módulos de negócio (auth, users). Cada um com controller, service, DTOs e guards próprios.
 
 ## 🛠️ Configuração e Instalação
 
@@ -118,13 +141,7 @@ npm run start:prod
 
 ## 👥 Usuários Padrão
 
-Após executar o seed, os seguintes usuários estarão disponíveis:
-
-| Email                | Senha    | Role   | Descrição               |
-| -------------------- | -------- | ------ | ----------------------- |
-| `master@example.com` | `123456` | MASTER | Acesso total ao sistema |
-| `admin@example.com`  | `123456` | ADMIN  | Acesso administrativo   |
-| `user@example.com`   | `123456` | USER   | Usuário comum           |
+Após executar o seed, usuários de exemplo são criados (credenciais e formatos podem variar conforme o seed). Use a documentação Swagger em `/api/docs` para testar login e endpoints.
 
 ## 🔐 Como Usar os Decorators
 
@@ -146,16 +163,16 @@ export class ExampleController {
 ```typescript
 @Controller('admin')
 export class AdminController {
-  @Roles(Role.ADMIN, Role.MASTER)
+  @Roles(Role.ADMIN)
   @Get('dashboard')
   getDashboard() {
-    return { message: 'Apenas ADMINs e MASTERs podem acessar' };
+    return { message: 'Apenas ADMIN pode acessar' };
   }
 
-  @Roles(Role.MASTER)
+  @Roles(Role.ADMIN)
   @Delete('users/:id')
   deleteUser(@Param('id') id: string) {
-    return { message: 'Apenas MASTER pode deletar usuários' };
+    return { message: 'Apenas ADMIN pode deletar usuários' };
   }
 }
 ```
@@ -166,10 +183,10 @@ export class AdminController {
 @Controller('profile')
 export class ProfileController {
   @Get()
-  getProfile(@CurrentUser() user: any) {
+  getProfile(@CurrentUser() user: RequestUser) {
     return {
       message: `Olá, ${user.name}!`,
-      user: user,
+      user,
     };
   }
 }
@@ -183,7 +200,7 @@ export class ProfileController {
 export class SecureController {
   @Roles(Role.ADMIN)
   @Get('admin-only')
-  getAdminData(@CurrentUser() user: any) {
+  getAdminData(@CurrentUser() user: RequestUser) {
     return { message: 'Dados administrativos', user };
   }
 }
@@ -260,12 +277,12 @@ Authorization: Bearer <token>
 GET /auth/admin-only
 Authorization: Bearer <token>
 
-# Endpoint apenas para MASTER
-GET /auth/master-only
+# Endpoint apenas para ADMIN
+GET /auth/admin-only
 Authorization: Bearer <token>
 ```
 
-### Usuários (requer role ADMIN ou MASTER)
+### Usuários (requer role ADMIN)
 
 ```bash
 # Listar usuários
@@ -284,7 +301,7 @@ Authorization: Bearer <token>
 PATCH /users/:id
 Authorization: Bearer <token>
 
-# Deletar usuário (apenas MASTER)
+# Excluir usuário (apenas ADMIN)
 DELETE /users/:id
 Authorization: Bearer <token>
 ```
@@ -326,19 +343,17 @@ O projeto inclui um `docker-compose.yml` configurado com:
 
 ### Guards Implementados
 
-1. **JwtAuthGuard**: Valida tokens JWT (aplicado globalmente)
-2. **LocalAuthGuard**: Para autenticação local (login)
-3. **RolesGuard**: Controla acesso baseado em roles
+1. **JwtAuthGuard**: Valida o token JWT e anexa o usuário à request (aplicado globalmente; rotas com `@Public()` são ignoradas).
+2. **RolesGuard**: Restringe acesso por role (usa o decorator `@Roles()`).
 
-### Hierarchy de Roles
+### Hierarquia de Roles
 
 ```
-MASTER > ADMIN > USER
+ADMIN > USER
 ```
 
-- **MASTER**: Acesso total (pode deletar usuários, etc.)
-- **ADMIN**: Acesso administrativo (pode gerenciar usuários)
-- **USER**: Acesso básico
+- **ADMIN**: Acesso administrativo (gerenciar usuários, listar, criar, editar, excluir, desativar).
+- **USER**: Acesso básico (perfil, rotas públicas e rotas permitidas ao USER).
 
 ## 📝 Licença
 
