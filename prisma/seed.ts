@@ -1,30 +1,36 @@
+import 'dotenv/config';
 import { PrismaClient, Role } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 import * as bcrypt from 'bcrypt';
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
+});
 
 async function main() {
   // Hash password
   const hashedPassword = await bcrypt.hash('123456', 10);
 
-  // Create USER user
+  // Create ADMIN user
   const adminUser = await prisma.user.upsert({
-    where: { phone: '+244924123456' },
+    where: { email: 'admin@example.com' },
     update: {},
     create: {
-      phone: '+244924123456',
+      email: 'admin@example.com',
+      phone: '+5511999990001',
       password: hashedPassword,
-      name: 'User User',
-      role: Role.USER,
+      name: 'Admin User',
+      role: Role.ADMIN,
     },
   });
 
   // Create regular USER
   const regularUser = await prisma.user.upsert({
-    where: { phone: '+244925123456' },
+    where: { email: 'user@example.com' },
     update: {},
     create: {
-      phone: '+244925123456',
+      email: 'user@example.com',
+      phone: '+5511999990002',
       password: hashedPassword,
       name: 'Regular User',
       role: Role.USER,
@@ -33,14 +39,12 @@ async function main() {
 
   console.log('Seed data created successfully:');
   console.log('Admin User:', adminUser);
-  console.log('Admin User:', adminUser);
   console.log('Regular User:', regularUser);
   console.log('\nDefault credentials for all users:');
   console.log('Password: 123456');
-  console.log('\nPhone numbers (Angola format):');
-  console.log('Master: +244923123456');
-  console.log('Admin: +244924123456');
-  console.log('User: +244925123456');
+  console.log('\nEmails:');
+  console.log('Admin: admin@example.com');
+  console.log('User: user@example.com');
 }
 
 main()

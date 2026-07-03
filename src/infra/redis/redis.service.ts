@@ -1,4 +1,9 @@
-import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  OnModuleInit,
+  OnModuleDestroy,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createClient, RedisClientType } from 'redis';
 
@@ -7,10 +12,13 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RedisService.name);
   private client: RedisClientType;
 
-  constructor(private configService: ConfigService) { }
+  constructor(private configService: ConfigService) {}
 
   async onModuleInit() {
-    const redisUrl = this.configService.get<string>('REDIS_URL', 'redis://localhost:6379');
+    const redisUrl = this.configService.get<string>(
+      'REDIS_URL',
+      'redis://localhost:6379',
+    );
 
     this.client = createClient({
       url: redisUrl,
@@ -48,8 +56,13 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   // Métodos básicos de conveniência
-  async set(key: string, value: string | number | object, ttl?: number): Promise<void> {
-    const stringValue = typeof value === 'object' ? JSON.stringify(value) : String(value);
+  async set(
+    key: string,
+    value: string | number | object,
+    ttl?: number,
+  ): Promise<void> {
+    const stringValue =
+      typeof value === 'object' ? JSON.stringify(value) : String(value);
 
     if (ttl) {
       await this.client.setEx(key, ttl, stringValue);
@@ -59,11 +72,11 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   async get(key: string): Promise<string | null> {
-    return await this.client.get(key);
+    return (await this.client.get(key)) as string | null;
   }
 
   async getObject<T>(key: string): Promise<T | null> {
-    const value = await this.client.get(key);
+    const value = (await this.client.get(key)) as string | null;
     if (!value) return null;
 
     try {
@@ -84,7 +97,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
   async expire(key: string, ttl: number): Promise<boolean> {
     const result = await this.client.expire(key, ttl);
-    return result;
+    return result === 1;
   }
 
   async ttl(key: string): Promise<number> {
@@ -109,11 +122,11 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   async lpop(key: string): Promise<string | null> {
-    return await this.client.lPop(key);
+    return (await this.client.lPop(key)) as string | null;
   }
 
   async rpop(key: string): Promise<string | null> {
-    return await this.client.rPop(key);
+    return (await this.client.rPop(key)) as string | null;
   }
 
   async lrange(key: string, start: number, stop: number): Promise<string[]> {
@@ -139,16 +152,20 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
   async sismember(key: string, member: string): Promise<boolean> {
     const result = await this.client.sIsMember(key, member);
-    return result;
+    return result === 1;
   }
 
   // Métodos para hash
-  async hset(key: string, field: string, value: string | number): Promise<number> {
+  async hset(
+    key: string,
+    field: string,
+    value: string | number,
+  ): Promise<number> {
     return await this.client.hSet(key, field, String(value));
   }
 
   async hget(key: string, field: string): Promise<string | null> {
-    return await this.client.hGet(key, field);
+    return (await this.client.hGet(key, field)) as string | null;
   }
 
   async hgetall(key: string): Promise<Record<string, string>> {
@@ -161,7 +178,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
   async hexists(key: string, field: string): Promise<boolean> {
     const result = await this.client.hExists(key, field);
-    return result;
+    return result === 1;
   }
 
   // Método para incrementar contadores

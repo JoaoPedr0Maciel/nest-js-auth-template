@@ -11,9 +11,9 @@ curl -X POST http://localhost:3000/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "novo@exemplo.com",
+    "phone": "+5511999999999",
     "password": "123456",
-    "name": "Novo Usuário",
-    "role": "USER"
+    "name": "Novo Usuário"
   }'
 ```
 
@@ -22,12 +22,14 @@ curl -X POST http://localhost:3000/auth/register \
 ```json
 {
   "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "user": {
     "id": "uuid-aqui",
     "email": "novo@exemplo.com",
+    "phone": "+5511999999999",
     "name": "Novo Usuário",
     "role": "USER",
-    "createdAt": "2024-01-01T00:00:00.000Z"
+    "createdAt": "2026-01-01T00:00:00.000Z"
   }
 }
 ```
@@ -48,14 +50,17 @@ curl -X POST http://localhost:3000/auth/login \
 ```json
 {
   "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "user": {
     "id": "uuid-aqui",
-    "email": "user@example.com",
+    "phone": "+5511999990002",
     "name": "Regular User",
     "role": "USER"
   }
 }
 ```
+
+> Login e registro são limitados a 5 tentativas por minuto por IP (rate limiting). Excedendo o limite, a API responde `429 Too Many Requests`.
 
 ### 3. Obter perfil do usuário logado
 
@@ -64,101 +69,92 @@ curl -X GET http://localhost:3000/auth/profile \
   -H "Authorization: Bearer SEU_TOKEN_AQUI"
 ```
 
-## 🛡️ Rotas com Autorização
-
-### 4. Acessar rota protegida básica
+### 4. Renovar tokens (refresh)
 
 ```bash
-curl -X GET http://localhost:3000/protected \
+curl -X POST http://localhost:3000/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{"refreshToken": "SEU_REFRESH_TOKEN_AQUI"}'
+```
+
+Retorna um novo par `access_token`/`refresh_token`. O refresh token usado é invalidado (rotação) — usá-lo de novo retorna `401 INVALID_REFRESH_TOKEN`.
+
+### 5. Logout (revoga o refresh token atual)
+
+```bash
+curl -X POST http://localhost:3000/auth/logout \
   -H "Authorization: Bearer SEU_TOKEN_AQUI"
 ```
 
-### 5. Acessar rota que requer role ADMIN ou MASTER
+## 🛡️ Gerenciamento de Usuários (requer role ADMIN)
+
+### 6. Listar usuários (paginado)
 
 ```bash
-# Primeiro faça login com um usuário ADMIN ou MASTER
-curl -X POST http://localhost:3000/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "admin@example.com",
-    "password": "123456"
-  }'
-
-# Depois use o token para acessar a rota
-curl -X GET http://localhost:3000/admin \
-  -H "Authorization: Bearer TOKEN_DO_ADMIN_AQUI"
+curl -X GET "http://localhost:3000/users?page=1&limit=15" \
+  -H "Authorization: Bearer TOKEN_ADMIN"
 ```
 
-### 6. Acessar rota que requer apenas role MASTER
+**Resposta:**
 
-```bash
-# Login como MASTER
-curl -X POST http://localhost:3000/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "master@example.com",
-    "password": "123456"
-  }'
-
-# Acessar rota exclusiva do MASTER
-curl -X GET http://localhost:3000/master \
-  -H "Authorization: Bearer TOKEN_DO_MASTER_AQUI"
+```json
+{
+  "data": [{ "id": "...", "email": "...", "phone": "...", "name": "...", "role": "USER" }],
+  "meta": {
+    "total": 42,
+    "page": 1,
+    "limit": 15,
+    "pages": 3,
+    "hasNextPage": true,
+    "hasPreviousPage": false
+  }
+}
 ```
 
-## 👥 Gerenciamento de Usuários
-
-### 7. Listar todos os usuários (requer ADMIN ou MASTER)
-
-```bash
-curl -X GET http://localhost:3000/users \
-  -H "Authorization: Bearer TOKEN_ADMIN_OU_MASTER"
-```
-
-### 8. Obter usuário por ID
+### 7. Obter usuário por ID
 
 ```bash
 curl -X GET http://localhost:3000/users/USER_ID_AQUI \
-  -H "Authorization: Bearer TOKEN_ADMIN_OU_MASTER"
+  -H "Authorization: Bearer TOKEN_ADMIN"
 ```
 
-### 9. Criar novo usuário (via endpoint administrativo)
+### 8. Criar novo usuário (via endpoint administrativo)
 
 ```bash
 curl -X POST http://localhost:3000/users \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer TOKEN_ADMIN_OU_MASTER" \
+  -H "Authorization: Bearer TOKEN_ADMIN" \
   -d '{
     "email": "admin2@exemplo.com",
+    "phone": "+5511988880000",
     "password": "senha123",
-    "name": "Segundo Admin",
-    "role": "ADMIN"
+    "name": "Segundo Admin"
   }'
 ```
 
-### 10. Atualizar usuário
+### 9. Atualizar usuário
 
 ```bash
 curl -X PATCH http://localhost:3000/users/USER_ID_AQUI \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer TOKEN_ADMIN_OU_MASTER" \
+  -H "Authorization: Bearer TOKEN_ADMIN" \
   -d '{
-    "name": "Nome Atualizado",
-    "role": "ADMIN"
+    "name": "Nome Atualizado"
   }'
 ```
 
-### 11. Alterar senha de usuário (como admin)
+### 10. Alterar senha de usuário (como admin)
 
 ```bash
 curl -X PATCH http://localhost:3000/users/USER_ID_AQUI/password \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer TOKEN_ADMIN_OU_MASTER" \
+  -H "Authorization: Bearer TOKEN_ADMIN" \
   -d '{
     "password": "nova_senha_123"
   }'
 ```
 
-### 12. Alterar sua própria senha
+### 11. Alterar sua própria senha
 
 ```bash
 curl -X PATCH http://localhost:3000/users/me/password \
@@ -169,111 +165,115 @@ curl -X PATCH http://localhost:3000/users/me/password \
   }'
 ```
 
-### 13. Desativar usuário
+### 12. Desativar usuário
 
 ```bash
 curl -X PATCH http://localhost:3000/users/USER_ID_AQUI/deactivate \
-  -H "Authorization: Bearer TOKEN_ADMIN_OU_MASTER"
+  -H "Authorization: Bearer TOKEN_ADMIN"
 ```
 
-### 14. Deletar usuário (apenas MASTER)
+### 13. Deletar usuário
 
 ```bash
 curl -X DELETE http://localhost:3000/users/USER_ID_AQUI \
-  -H "Authorization: Bearer TOKEN_MASTER"
+  -H "Authorization: Bearer TOKEN_ADMIN"
 ```
 
 ## 🔍 Rotas Públicas
 
-### 15. Acessar rota pública (sem autenticação)
+### 14. Rota raiz
 
 ```bash
 curl -X GET http://localhost:3000/
 ```
 
-## ⚠️ Exemplos de Erros
-
-### 16. Tentar acessar rota protegida sem token
+### 15. Healthcheck (banco de dados e Redis)
 
 ```bash
-curl -X GET http://localhost:3000/protected
+curl -X GET http://localhost:3000/health
 ```
 
-**Resposta (401):**
+**Resposta:**
+
+```json
+{
+  "status": "ok",
+  "info": { "database": { "status": "up" }, "redis": { "status": "up" } },
+  "error": {},
+  "details": { "database": { "status": "up" }, "redis": { "status": "up" } }
+}
+```
+
+## ⚠️ Exemplos de Erros
+
+Todas as exceções passam pelo filtro global e retornam nesse formato:
 
 ```json
 {
   "statusCode": 401,
-  "message": "Unauthorized"
+  "message": "Invalid token",
+  "path": "/users",
+  "timestamp": "2026-01-01T00:00:00.000Z"
 }
 ```
 
-### 25. Tentar acessar rota admin com usuário comum
+### 16. Acessar rota protegida sem token
+
+```bash
+curl -X GET http://localhost:3000/users
+```
+
+**Resposta (401)**
+
+### 17. Acessar rota admin com usuário comum
 
 ```bash
 # Login como USER
 curl -X POST http://localhost:3000/auth/login \
   -H "Content-Type: application/json" \
-  -d '{
-    "email": "user@example.com",
-    "password": "123456"
-  }'
+  -d '{"email": "user@example.com", "password": "123456"}'
 
-# Tentar acessar rota admin (vai dar erro 403)
-curl -X GET http://localhost:3000/admin \
+# Tentar listar usuários (vai dar 403)
+curl -X GET http://localhost:3000/users \
   -H "Authorization: Bearer TOKEN_DO_USER"
 ```
 
-**Resposta (403):**
+**Resposta (403)**
 
-```json
-{
-  "statusCode": 403,
-  "message": "Forbidden resource"
-}
-```
-
-## 📝 Scripts para Teste Rápido
-
-### Script de teste completo (Bash)
+## 📝 Script de teste rápido (Bash)
 
 ```bash
 #!/bin/bash
 
-# Definir URL base
 BASE_URL="http://localhost:3000"
 
 echo "=== Testando API do NestJS Auth Template ==="
 
-# 1. Rota pública
-echo -e "\n1. Testando rota pública:"
+echo -e "\n1. Rota pública:"
 curl -s "$BASE_URL/" | jq .
 
-# 2. Login como USER
-echo -e "\n2. Login como USER:"
+echo -e "\n2. Healthcheck:"
+curl -s "$BASE_URL/health" | jq .
+
+echo -e "\n3. Login como USER:"
 USER_RESPONSE=$(curl -s -X POST "$BASE_URL/auth/login" \
   -H "Content-Type: application/json" \
   -d '{"email": "user@example.com", "password": "123456"}')
 echo $USER_RESPONSE | jq .
-
 USER_TOKEN=$(echo $USER_RESPONSE | jq -r '.access_token')
 
-# 3. Perfil do usuário
-echo -e "\n3. Perfil do usuário:"
+echo -e "\n4. Perfil do usuário:"
 curl -s -X GET "$BASE_URL/auth/profile" \
   -H "Authorization: Bearer $USER_TOKEN" | jq .
 
-# 4. Login como ADMIN
-echo -e "\n4. Login como ADMIN:"
+echo -e "\n5. Login como ADMIN:"
 ADMIN_RESPONSE=$(curl -s -X POST "$BASE_URL/auth/login" \
   -H "Content-Type: application/json" \
   -d '{"email": "admin@example.com", "password": "123456"}')
 echo $ADMIN_RESPONSE | jq .
-
 ADMIN_TOKEN=$(echo $ADMIN_RESPONSE | jq -r '.access_token')
 
-# 5. Listar usuários (como admin)
-echo -e "\n5. Listar usuários (como ADMIN):"
+echo -e "\n6. Listar usuários (como ADMIN):"
 curl -s -X GET "$BASE_URL/users" \
   -H "Authorization: Bearer $ADMIN_TOKEN" | jq .
 
@@ -284,6 +284,8 @@ Para usar este script:
 
 1. Salve como `test_api.sh`
 2. Execute: `chmod +x test_api.sh && ./test_api.sh`
+
+Credenciais do seed (`npm run prisma:seed`): `admin@example.com` / `user@example.com`, senha `123456`.
 
 ## 🧪 Testando com Postman
 

@@ -7,9 +7,9 @@ import {
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { Request } from 'express';
 import { PrismaService } from '../../../infra/prisma/prisma.service';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
-import { RequestUser } from '../interfaces/user.interface';
 import type { JwtPayload } from 'src/common/interfaces/jwt-payload.interface';
 
 @Injectable()
@@ -19,7 +19,7 @@ export class JwtAuthGuard implements CanActivate {
     private jwtService: JwtService,
     private configService: ConfigService,
     private prisma: PrismaService,
-  ) { }
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
@@ -31,7 +31,7 @@ export class JwtAuthGuard implements CanActivate {
       return true;
     }
 
-    const request = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest<Request>();
     const token = this.extractTokenFromHeader(request);
 
     if (!token) {
@@ -52,6 +52,7 @@ export class JwtAuthGuard implements CanActivate {
         where: { id: payload.id },
         select: {
           id: true,
+          email: true,
           phone: true,
           name: true,
           role: true,
@@ -68,7 +69,7 @@ export class JwtAuthGuard implements CanActivate {
       }
 
       // Adiciona o usuário na request
-      (request as { user?: RequestUser }).user = user as RequestUser;
+      request.user = user;
 
       return true;
     } catch (error) {
@@ -79,7 +80,7 @@ export class JwtAuthGuard implements CanActivate {
     }
   }
 
-  private extractTokenFromHeader(request: any): string | undefined {
+  private extractTokenFromHeader(request: Request): string | undefined {
     const [type, token] = request.headers['authorization']?.split(' ') ?? [];
     return type === 'Bearer' ? token : undefined;
   }

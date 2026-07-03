@@ -4,9 +4,9 @@ services:
     container_name: nest-template-postgres
     restart: always
     environment:
-      POSTGRES_DB: nest-template
+      POSTGRES_DB: nestjs_auth
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: postgres123
     ports:
       - '5432:5432'
     volumes:
@@ -39,6 +39,26 @@ services:
       - '6379:6379'
     volumes:
       - redis_data:/data
+    networks:
+      - nest-template-network
+
+  app:
+    build:
+      context: .
+      args:
+        DATABASE_URL: postgresql://postgres:postgres123@postgres:5432/nestjs_auth?schema=public
+    container_name: nest-template-app
+    restart: always
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres123@postgres:5432/nestjs_auth?schema=public
+      REDIS_URL: redis://redis:6379
+    ports:
+      - '3000:3000'
+    depends_on:
+      - postgres
+      - redis
     networks:
       - nest-template-network
 

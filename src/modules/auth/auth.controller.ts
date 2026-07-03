@@ -7,9 +7,11 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Public } from './decorators/public.decorator';
 import { CurrentUser } from './decorators/current-user.decorator';
@@ -28,6 +30,7 @@ export class AuthController {
   constructor(private authService: AuthService) {}
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Fazer login no sistema' })
@@ -37,6 +40,7 @@ export class AuthController {
     schema: {
       example: {
         access_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+        refresh_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
         user: {
           id: '1',
           phone: '+244923456789',
@@ -53,6 +57,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('register')
   @ApiOperation({ summary: 'Registrar novo usuário' })
   @ApiResponse({
@@ -60,11 +65,15 @@ export class AuthController {
     description: 'Usuário criado com sucesso',
     schema: {
       example: {
-        id: '1',
-        phone: '+244923456789',
-        name: 'João Silva',
-        role: 'USER',
-        createdAt: '2024-01-01T00:00:00.000Z',
+        access_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+        refresh_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+        user: {
+          id: '1',
+          phone: '+244923456789',
+          name: 'João Silva',
+          role: 'USER',
+          createdAt: '2024-01-01T00:00:00.000Z',
+        },
       },
     },
   })
@@ -73,6 +82,41 @@ export class AuthController {
   @ApiBody({ type: RegisterDto })
   async register(@Body() registerDto: RegisterDto) {
     return this.authService.register(registerDto);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Renovar access token usando o refresh token' })
+  @ApiResponse({
+    status: 200,
+    description: 'Tokens renovados com sucesso',
+    schema: {
+      example: {
+        access_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+        refresh_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Refresh token inválido ou expirado',
+  })
+  @ApiBody({ type: RefreshTokenDto })
+  async refresh(@Body() refreshTokenDto: RefreshTokenDto) {
+    return this.authService.refresh(refreshTokenDto.refreshToken);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('logout')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Revogar o refresh token do usuário autenticado' })
+  @ApiBearerAuth('JWT-auth')
+  @ApiResponse({ status: 204, description: 'Logout realizado com sucesso' })
+  @ApiResponse({ status: 401, description: 'Token JWT inválido' })
+  async logout(@CurrentUser() user: RequestUser) {
+    await this.authService.logout(user.id);
   }
 
   @UseGuards(JwtAuthGuard)

@@ -1,5 +1,5 @@
-import { IsNumberString, IsOptional } from "class-validator";
-import { PaginationParams, PaginationResult } from "./pagination.types";
+import { IsNumberString, IsOptional } from 'class-validator';
+import { PaginationParams, PaginationResult } from './pagination.types';
 
 export class Pagination {
   @IsNumberString()
@@ -11,7 +11,11 @@ export class Pagination {
   limit?: string;
 }
 
-export function defaultPagination(pagination: Pagination): { page: string; limit: string; skip: string } {
+export function defaultPagination(pagination: Pagination): {
+  page: string;
+  limit: string;
+  skip: string;
+} {
   const { page, limit } = pagination;
   const pageNumber = page ? parseInt(page) : 1;
   const limitNumber = limit ? parseInt(limit) : 15;
@@ -24,7 +28,10 @@ export function defaultPagination(pagination: Pagination): { page: string; limit
   };
 }
 
-export function paginationQuery(pagination: Pagination): { skip: number; take: number } {
+export function paginationQuery(pagination: Pagination): {
+  skip: number;
+  take: number;
+} {
   const { skip, limit: take } = defaultPagination(pagination);
 
   return {
@@ -34,14 +41,17 @@ export function paginationQuery(pagination: Pagination): { skip: number; take: n
 }
 
 export function getPagination(params: PaginationParams): PaginationResult {
-  const { page, limit } = defaultPagination({ limit: params.limit?.toString(), page: params.page?.toString() });
+  const { page, limit } = defaultPagination({
+    limit: params.limit?.toString(),
+    page: params.page?.toString(),
+  });
 
+  const currentPage = parseInt(page);
   const totalPages = Math.ceil(params.count / parseInt(limit));
-  const currentPage = Math.floor(parseInt(page) / parseInt(limit)) + 1;
 
   return {
     total: params.count,
-    page: parseInt(page),
+    page: currentPage,
     limit: parseInt(limit),
     pages: totalPages,
     hasNextPage: currentPage < totalPages,

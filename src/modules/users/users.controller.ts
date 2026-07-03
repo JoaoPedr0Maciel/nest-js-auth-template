@@ -6,6 +6,7 @@ import {
   Patch,
   Param,
   Delete,
+  Query,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -16,40 +17,62 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Role } from '@prisma/client';
-import { CreateUserDto } from './dtos/create-user.dto';
-import { UpdateUserDto } from './dtos/update-user.dto';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody, ApiParam } from '@nestjs/swagger';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { Pagination } from '../../common/pagination';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiBody,
+  ApiParam,
+  ApiQuery,
+} from '@nestjs/swagger';
+import { RequestUser } from '../auth/interfaces/user.interface';
 
 @ApiTags('users')
 @Controller('users')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class UsersController {
-  constructor(private readonly usersService: UsersService) { }
+  constructor(private readonly usersService: UsersService) {}
 
   @Get()
   @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'Listar todos os usuários (apenas ADMIN)' })
+  @ApiOperation({ summary: 'Listar usuários paginados (apenas ADMIN)' })
   @ApiBearerAuth('JWT-auth')
-  @ApiResponse({ 
-    status: 200, 
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 15 })
+  @ApiResponse({
+    status: 200,
     description: 'Lista de usuários obtida com sucesso',
     schema: {
-      example: [
-        {
-          id: '1',
-          phone: '+244923456789',
-          name: 'João Silva',
-          role: 'USER',
-          isActive: true,
-          createdAt: '2024-01-01T00:00:00.000Z'
-        }
-      ]
-    }
+      example: {
+        data: [
+          {
+            id: '1',
+            phone: '+244923456789',
+            name: 'João Silva',
+            role: 'USER',
+            isActive: true,
+            createdAt: '2024-01-01T00:00:00.000Z',
+          },
+        ],
+        meta: {
+          total: 1,
+          page: 1,
+          limit: 15,
+          pages: 1,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
+      },
+    },
   })
   @ApiResponse({ status: 401, description: 'Token JWT inválido' })
   @ApiResponse({ status: 403, description: 'Acesso negado - apenas ADMIN' })
-  findAll() {
-    return this.usersService.findAll();
+  findAll(@Query() pagination: Pagination) {
+    return this.usersService.findAll(pagination);
   }
 
   @Get(':id')
@@ -57,9 +80,9 @@ export class UsersController {
   @ApiOperation({ summary: 'Obter usuário por ID (apenas ADMIN)' })
   @ApiBearerAuth('JWT-auth')
   @ApiParam({ name: 'id', description: 'ID do usuário', example: '1' })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Usuário encontrado com sucesso'
+  @ApiResponse({
+    status: 200,
+    description: 'Usuário encontrado com sucesso',
   })
   @ApiResponse({ status: 404, description: 'Usuário não encontrado' })
   @ApiResponse({ status: 401, description: 'Token JWT inválido' })
@@ -72,9 +95,9 @@ export class UsersController {
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Criar novo usuário (apenas ADMIN)' })
   @ApiBearerAuth('JWT-auth')
-  @ApiResponse({ 
-    status: 201, 
-    description: 'Usuário criado com sucesso'
+  @ApiResponse({
+    status: 201,
+    description: 'Usuário criado com sucesso',
   })
   @ApiResponse({ status: 400, description: 'Dados inválidos' })
   @ApiResponse({ status: 401, description: 'Token JWT inválido' })
@@ -89,9 +112,9 @@ export class UsersController {
   @ApiOperation({ summary: 'Atualizar usuário (apenas ADMIN)' })
   @ApiBearerAuth('JWT-auth')
   @ApiParam({ name: 'id', description: 'ID do usuário', example: '1' })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Usuário atualizado com sucesso'
+  @ApiResponse({
+    status: 200,
+    description: 'Usuário atualizado com sucesso',
   })
   @ApiResponse({ status: 404, description: 'Usuário não encontrado' })
   @ApiResponse({ status: 401, description: 'Token JWT inválido' })
@@ -106,14 +129,14 @@ export class UsersController {
   @ApiOperation({ summary: 'Atualizar senha de usuário (apenas ADMIN)' })
   @ApiBearerAuth('JWT-auth')
   @ApiParam({ name: 'id', description: 'ID do usuário', example: '1' })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Senha atualizada com sucesso'
+  @ApiResponse({
+    status: 200,
+    description: 'Senha atualizada com sucesso',
   })
   @ApiResponse({ status: 404, description: 'Usuário não encontrado' })
   @ApiResponse({ status: 401, description: 'Token JWT inválido' })
   @ApiResponse({ status: 403, description: 'Acesso negado - apenas ADMIN' })
-  @ApiBody({ 
+  @ApiBody({
     schema: {
       type: 'object',
       properties: {
@@ -121,11 +144,11 @@ export class UsersController {
           type: 'string',
           description: 'Nova senha (mínimo 6 caracteres)',
           example: '123456',
-          minLength: 6
-        }
+          minLength: 6,
+        },
       },
-      required: ['password']
-    }
+      required: ['password'],
+    },
   })
   updatePassword(@Param('id') id: string, @Body('password') password: string) {
     return this.usersService.updatePassword(id, password);
@@ -134,12 +157,12 @@ export class UsersController {
   @Patch('me/password')
   @ApiOperation({ summary: 'Atualizar minha própria senha' })
   @ApiBearerAuth('JWT-auth')
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Senha atualizada com sucesso'
+  @ApiResponse({
+    status: 200,
+    description: 'Senha atualizada com sucesso',
   })
   @ApiResponse({ status: 401, description: 'Token JWT inválido' })
-  @ApiBody({ 
+  @ApiBody({
     schema: {
       type: 'object',
       properties: {
@@ -147,13 +170,16 @@ export class UsersController {
           type: 'string',
           description: 'Nova senha (mínimo 6 caracteres)',
           example: '123456',
-          minLength: 6
-        }
+          minLength: 6,
+        },
       },
-      required: ['password']
-    }
+      required: ['password'],
+    },
   })
-  updateMyPassword(@CurrentUser() user: any, @Body('password') password: string) {
+  updateMyPassword(
+    @CurrentUser() user: RequestUser,
+    @Body('password') password: string,
+  ) {
     return this.usersService.updatePassword(user.id, password);
   }
 
@@ -163,9 +189,9 @@ export class UsersController {
   @ApiOperation({ summary: 'Excluir usuário (apenas ADMIN)' })
   @ApiBearerAuth('JWT-auth')
   @ApiParam({ name: 'id', description: 'ID do usuário', example: '1' })
-  @ApiResponse({ 
-    status: 204, 
-    description: 'Usuário excluído com sucesso'
+  @ApiResponse({
+    status: 204,
+    description: 'Usuário excluído com sucesso',
   })
   @ApiResponse({ status: 404, description: 'Usuário não encontrado' })
   @ApiResponse({ status: 401, description: 'Token JWT inválido' })
@@ -179,9 +205,9 @@ export class UsersController {
   @ApiOperation({ summary: 'Desativar usuário (apenas ADMIN)' })
   @ApiBearerAuth('JWT-auth')
   @ApiParam({ name: 'id', description: 'ID do usuário', example: '1' })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Usuário desativado com sucesso'
+  @ApiResponse({
+    status: 200,
+    description: 'Usuário desativado com sucesso',
   })
   @ApiResponse({ status: 404, description: 'Usuário não encontrado' })
   @ApiResponse({ status: 401, description: 'Token JWT inválido' })
