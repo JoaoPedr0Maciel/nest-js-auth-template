@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createClient, RedisClientType } from 'redis';
+import { z } from 'zod';
 
 @Injectable()
 export class RedisService implements OnModuleInit, OnModuleDestroy {
@@ -75,15 +76,38 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     return (await this.client.get(key)) as string | null;
   }
 
-  async getObject<T>(key: string): Promise<T | null> {
+  /**
+   * Lê e valida um objeto salvo no Redis contra um schema Zod.
+   *
+   * O Redis guarda só texto — o que volta em `JSON.parse` é `unknown`,
+   * não o `T` que o chamador espera. Um `as T` aqui mentiria pro
+   * compilador: nada garante que o valor salvo ainda bate com o shape
+   * atual do código (ex. deploy anterior gravou um formato diferente,
+   * TTL vencido de forma inconsistente, chave usada por outro serviço).
+   * `schema.parse` valida isso em runtime, no lugar onde o dado
+   * realmente entra na aplicação.
+   */
+  async getObject<T>(key: string, schema: z.ZodType<T>): Promise<T | null> {
     const value = (await this.client.get(key)) as string | null;
     if (!value) return null;
 
+    let parsed: unknown;
     try {
-      return JSON.parse(value) as T;
+      parsed = JSON.parse(value);
     } catch {
+      this.logger.warn(`Valor em "${key}" não é um JSON válido`);
       return null;
     }
+
+    const result = schema.safeParse(parsed);
+    if (!result.success) {
+      this.logger.warn(
+        `Valor em "${key}" não bate com o schema esperado: ${result.error.message}`,
+      );
+      return null;
+    }
+
+    return result.data;
   }
 
   async del(key: string): Promise<number> {

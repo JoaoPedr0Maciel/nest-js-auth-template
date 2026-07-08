@@ -9,7 +9,7 @@ Template NestJS com autenticação JWT, autorização baseada em roles e Prisma 
 - Autorização baseada em roles (USER, ADMIN)
 - Decorators `@Roles`, `@CurrentUser`, `@Public`
 - Prisma ORM 7 (com driver adapters) + PostgreSQL
-- Redis para cache
+- Redis para cache, com leitura validada em runtime via Zod (`RedisService.getObject`) — um cache desatualizado ou gravado com outro shape retorna `null` em vez de vazar dado inconsistente pro resto da aplicação
 - Docker Compose com PostgreSQL, PgAdmin4, Redis e a própria aplicação
 - Swagger/OpenAPI em `/api/docs`
 - Validação com class-validator (telefone validado via `@IsPhoneNumber()`, formato internacional E.164)
@@ -39,17 +39,17 @@ Credenciais do seed: `admin@example.com` (role `ADMIN`) e `user@example.com` (ro
 
 ## Scripts
 
-| Comando | Descrição |
-|---------|-----------|
-| `npm run start:dev` | Modo desenvolvimento |
-| `npm run build` | Build para produção |
-| `npm run prisma:generate` | Gerar cliente Prisma |
-| `npm run prisma:migrate` | Executar migrations |
-| `npm run prisma:seed` | Popular banco com dados iniciais |
-| `npm run db:reset` | Reset completo do banco |
-| `npm run test` | Testes unitários |
-| `npm run test:e2e` | Testes end-to-end |
-| `npm run lint` | Lint (ESLint flat config) |
+| Comando                   | Descrição                        |
+| ------------------------- | -------------------------------- |
+| `npm run start:dev`       | Modo desenvolvimento             |
+| `npm run build`           | Build para produção              |
+| `npm run prisma:generate` | Gerar cliente Prisma             |
+| `npm run prisma:migrate`  | Executar migrations              |
+| `npm run prisma:seed`     | Popular banco com dados iniciais |
+| `npm run db:reset`        | Reset completo do banco          |
+| `npm run test`            | Testes unitários                 |
+| `npm run test:e2e`        | Testes end-to-end                |
+| `npm run lint`            | Lint (ESLint flat config)        |
 
 ## Arquitetura
 
@@ -85,25 +85,26 @@ src/
 
 ### Onde colocar cada coisa
 
-| Pasta | O que vai aqui |
-|-------|----------------|
-| `modules/` | Funcionalidades de negócio. Novo domínio = nova pasta aqui. |
-| `common/` | Tudo compartilhado por mais de um módulo: decorators, erros, filtros, paginação, interfaces, utils. |
-| `infra/` | Conexões com banco, cache e serviços externos (cada recurso em sua própria pasta: `infra/prisma`, `infra/redis`, `infra/health`). |
-| `config/` | Validação e schemas de configuração (env vars). |
-| Raiz de `src/` | Apenas `app.module.ts`, `app.controller.ts`, `app.service.ts` e `main.ts`. |
-| `prisma/` (raiz do projeto) | Schema e migrations do banco. |
+| Pasta                       | O que vai aqui                                                                                                                    |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `modules/`                  | Funcionalidades de negócio. Novo domínio = nova pasta aqui.                                                                       |
+| `common/`                   | Tudo compartilhado por mais de um módulo: decorators, erros, filtros, paginação, interfaces, utils.                               |
+| `infra/`                    | Conexões com banco, cache e serviços externos (cada recurso em sua própria pasta: `infra/prisma`, `infra/redis`, `infra/health`). |
+| `config/`                   | Validação e schemas de configuração (env vars).                                                                                   |
+| Raiz de `src/`              | Apenas `app.module.ts`, `app.controller.ts`, `app.service.ts` e `main.ts`.                                                        |
+| `prisma/` (raiz do projeto) | Schema e migrations do banco.                                                                                                     |
 
 ### Dentro de um módulo (`modules/<nome>/`)
 
-| O que adicionar | Onde |
-|-----------------|------|
-| Controller, service, module | Raiz do módulo |
-| DTOs | `dto/` |
-| Guards, pipes, interceptors | `guards/`, `pipes/`, `interceptors/` |
-| Decorators do módulo | `decorators/` |
-| Interfaces e types do módulo | `interfaces/` |
-| Catálogo de erros do módulo | `errors/index.ts` |
+| O que adicionar                                                                            | Onde                                 |
+| ------------------------------------------------------------------------------------------ | ------------------------------------ |
+| Controller, service, module                                                                | Raiz do módulo                       |
+| DTOs                                                                                       | `dto/`                               |
+| Guards, pipes, interceptors                                                                | `guards/`, `pipes/`, `interceptors/` |
+| Decorators do módulo                                                                       | `decorators/`                        |
+| Interfaces e types do módulo                                                               | `interfaces/`                        |
+| Catálogo de erros do módulo                                                                | `errors/index.ts`                    |
+| Schemas Zod (validação de dado que não passou pelo `ValidationPipe`, ex. leitura de cache) | `schemas/`                           |
 
 ### Tratamento de erros
 
@@ -122,9 +123,9 @@ src/
 
 ### Roles
 
-| Role | Permissões |
-|------|-----------|
-| `USER` | Acesso básico |
+| Role    | Permissões                                           |
+| ------- | ---------------------------------------------------- |
+| `USER`  | Acesso básico                                        |
 | `ADMIN` | Gerenciamento de usuários e recursos administrativos |
 
 ## Prisma 7

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../infra/prisma/prisma.service';
+import { RedisService } from '../../infra/redis/redis.service';
 import { Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { normalizePhone } from '../../common/utils/phone.util';
@@ -10,10 +11,20 @@ import {
   paginationQuery,
 } from '../../common/pagination';
 import { userErrors } from './errors';
+import { userCacheSchema } from './schemas/user-cache.schema';
+
+const USER_CACHE_TTL_SECONDS = 300;
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private redis: RedisService,
+  ) {}
+
+  private userCacheKey(id: string): string {
+    return `user:${id}`;
+  }
 
   async findAll(pagination: Pagination): Promise<
     PaginationResponse<{
@@ -59,6 +70,12 @@ export class UsersService {
   }
 
   async findOne(id: string) {
+    const cached = await this.redis.getObject(
+      this.userCacheKey(id),
+      userCacheSchema,
+    );
+    if (cached) return cached;
+
     const user = await this.prisma.user.findUnique({
       where: { id },
       select: {
@@ -76,6 +93,8 @@ export class UsersService {
     if (!user) {
       throw userErrors.notFound();
     }
+
+    await this.redis.set(this.userCacheKey(id), user, USER_CACHE_TTL_SECONDS);
 
     return user;
   }
@@ -162,7 +181,7 @@ export class UsersService {
       }
     }
 
-    return this.prisma.user.update({
+    const updated = await this.prisma.user.update({
       where: { id },
       data: updateData,
       select: {
@@ -176,6 +195,10 @@ export class UsersService {
         updatedAt: true,
       },
     });
+
+    await this.redis.del(this.userCacheKey(id));
+
+    return updated;
   }
 
   async updatePassword(id: string, newPassword: string) {
@@ -199,7 +222,7 @@ export class UsersService {
   async remove(id: string) {
     await this.findOne(id);
 
-    return this.prisma.user.delete({
+    const removed = await this.prisma.user.delete({
       where: { id },
       select: {
         id: true,
@@ -208,12 +231,16 @@ export class UsersService {
         name: true,
       },
     });
+
+    await this.redis.del(this.userCacheKey(id));
+
+    return removed;
   }
 
   async deactivate(id: string) {
     await this.findOne(id);
 
-    return this.prisma.user.update({
+    const deactivated = await this.prisma.user.update({
       where: { id },
       data: { isActive: false },
       select: {
@@ -224,5 +251,9 @@ export class UsersService {
         isActive: true,
       },
     });
+
+    await this.redis.del(this.userCacheKey(id));
+
+    return deactivated;
   }
 }
