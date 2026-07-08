@@ -17,7 +17,7 @@ Template NestJS com autenticação JWT, autorização baseada em roles e Prisma 
 - Rate limiting (`@nestjs/throttler`), mais restritivo em `/auth/login` e `/auth/register`
 - Healthcheck em `/health` (Prisma + Redis) via `@nestjs/terminus`
 - Filtro de exceção global com formato de erro padronizado
-- Validação de variáveis de ambiente na inicialização (Joi)
+- Validação de variáveis de ambiente na inicialização (Zod) — boot falha cedo, com mensagem clara, se faltar algo
 - Paginação (`common/pagination`) em endpoints de listagem, ex. `GET /users?page=1&limit=15`
 - CI (GitHub Actions): lint, build, testes unitários e e2e
 

@@ -1,15 +1,36 @@
-import * as Joi from 'joi';
+import { z } from 'zod';
 
-export const envValidationSchema = Joi.object({
-  NODE_ENV: Joi.string()
-    .valid('development', 'production', 'test')
+const envSchema = z.object({
+  NODE_ENV: z
+    .enum(['development', 'production', 'test'])
     .default('development'),
-  PORT: Joi.number().default(3000),
-  DATABASE_URL: Joi.string().uri().required(),
-  JWT_SECRET: Joi.string().min(16).required(),
-  JWT_EXPIRES_IN: Joi.string().default('24h'),
-  JWT_REFRESH_SECRET: Joi.string().min(16).required(),
-  JWT_REFRESH_EXPIRES_IN: Joi.string().default('7d'),
-  REDIS_URL: Joi.string().uri().required(),
-  CORS_ORIGIN: Joi.string().default('*'),
+  PORT: z.coerce.number().default(3000),
+  DATABASE_URL: z.url(),
+  JWT_SECRET: z.string().min(16),
+  JWT_EXPIRES_IN: z.string().default('24h'),
+  JWT_REFRESH_SECRET: z.string().min(16),
+  JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
+  REDIS_URL: z.url(),
+  CORS_ORIGIN: z.string().default('*'),
 });
+
+export type EnvConfig = z.infer<typeof envSchema>;
+
+/**
+ * Chamado pelo ConfigModule (`validate`) na inicialização, com
+ * `process.env` inteiro. Diferente do `validationSchema` do Joi, aqui
+ * quem decide o formato de erro somos nós — lançar aqui derruba o boot
+ * da aplicação antes de qualquer coisa tentar usar uma env var ausente.
+ */
+export function validateEnv(config: Record<string, unknown>): EnvConfig {
+  const result = envSchema.safeParse(config);
+
+  if (!result.success) {
+    const issues = result.error.issues
+      .map((issue) => `  - ${issue.path.join('.')}: ${issue.message}`)
+      .join('\n');
+    throw new Error(`Variáveis de ambiente inválidas:\n${issues}`);
+  }
+
+  return result.data;
+}

@@ -9,13 +9,13 @@ import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { RedisModule } from './infra/redis/redis.module';
 import { HealthModule } from './infra/health/health.module';
-import { envValidationSchema } from './config/env.validation';
+import { validateEnv } from './config/env.validation';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      validationSchema: envValidationSchema,
+      validate: validateEnv,
     }),
     ThrottlerModule.forRoot([
       {

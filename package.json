@@ -47,7 +47,6 @@
     "class-validator": "^0.15.1",
     "dotenv": "^17.4.2",
     "helmet": "^8.2.0",
-    "joi": "^18.2.3",
     "libphonenumber-js": "^1.13.8",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
