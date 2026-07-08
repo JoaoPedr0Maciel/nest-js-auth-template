@@ -16,13 +16,14 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Public } from './decorators/public.decorator';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { RequestUser } from './interfaces/user.interface';
+import { ApiTags } from '@nestjs/swagger';
 import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiBearerAuth,
-  ApiBody,
-} from '@nestjs/swagger';
+  ApiLogin,
+  ApiLogout,
+  ApiProfile,
+  ApiRefreshToken,
+  ApiRegister,
+} from './docs/auth.swagger';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -33,25 +34,7 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Fazer login no sistema' })
-  @ApiResponse({
-    status: 200,
-    description: 'Login realizado com sucesso',
-    schema: {
-      example: {
-        access_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
-        refresh_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
-        user: {
-          id: '1',
-          phone: '+244923456789',
-          name: 'João Silva',
-          role: 'USER',
-        },
-      },
-    },
-  })
-  @ApiResponse({ status: 401, description: 'Credenciais inválidas' })
-  @ApiBody({ type: LoginDto })
+  @ApiLogin()
   async login(@Body() loginDto: LoginDto) {
     return this.authService.login(loginDto);
   }
@@ -59,27 +42,7 @@ export class AuthController {
   @Public()
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('register')
-  @ApiOperation({ summary: 'Registrar novo usuário' })
-  @ApiResponse({
-    status: 201,
-    description: 'Usuário criado com sucesso',
-    schema: {
-      example: {
-        access_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
-        refresh_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
-        user: {
-          id: '1',
-          phone: '+244923456789',
-          name: 'João Silva',
-          role: 'USER',
-          createdAt: '2024-01-01T00:00:00.000Z',
-        },
-      },
-    },
-  })
-  @ApiResponse({ status: 400, description: 'Dados inválidos' })
-  @ApiResponse({ status: 409, description: 'Usuário já existe' })
-  @ApiBody({ type: RegisterDto })
+  @ApiRegister()
   async register(@Body() registerDto: RegisterDto) {
     return this.authService.register(registerDto);
   }
@@ -88,22 +51,7 @@ export class AuthController {
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Renovar access token usando o refresh token' })
-  @ApiResponse({
-    status: 200,
-    description: 'Tokens renovados com sucesso',
-    schema: {
-      example: {
-        access_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
-        refresh_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
-      },
-    },
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Refresh token inválido ou expirado',
-  })
-  @ApiBody({ type: RefreshTokenDto })
+  @ApiRefreshToken()
   async refresh(@Body() refreshTokenDto: RefreshTokenDto) {
     return this.authService.refresh(refreshTokenDto.refreshToken);
   }
@@ -111,32 +59,14 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Post('logout')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Revogar o refresh token do usuário autenticado' })
-  @ApiBearerAuth('JWT-auth')
-  @ApiResponse({ status: 204, description: 'Logout realizado com sucesso' })
-  @ApiResponse({ status: 401, description: 'Token JWT inválido' })
+  @ApiLogout()
   async logout(@CurrentUser() user: RequestUser) {
     await this.authService.logout(user.id);
   }
 
   @UseGuards(JwtAuthGuard)
   @Get('profile')
-  @ApiOperation({ summary: 'Obter perfil do usuário autenticado' })
-  @ApiBearerAuth('JWT-auth')
-  @ApiResponse({
-    status: 200,
-    description: 'Perfil do usuário obtido com sucesso',
-    schema: {
-      example: {
-        id: '1',
-        phone: '+244923456789',
-        name: 'João Silva',
-        role: 'USER',
-        createdAt: '2024-01-01T00:00:00.000Z',
-      },
-    },
-  })
-  @ApiResponse({ status: 401, description: 'Token JWT inválido' })
+  @ApiProfile()
   async getProfile(@CurrentUser() user: RequestUser) {
     return this.authService.getProfile(user.id);
   }

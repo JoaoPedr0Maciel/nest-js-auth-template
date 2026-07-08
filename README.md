@@ -105,6 +105,7 @@ src/
 | Interfaces e types do módulo                                                               | `interfaces/`                        |
 | Catálogo de erros do módulo                                                                | `errors/index.ts`                    |
 | Schemas Zod (validação de dado que não passou pelo `ValidationPipe`, ex. leitura de cache) | `schemas/`                           |
+| Decorators compostos de Swagger por rota (`@ApiLogin()`, `@ApiListUsers()`, ...)           | `docs/<nome>.swagger.ts`             |
 
 ### Tratamento de erros
 
