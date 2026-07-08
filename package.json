@@ -106,6 +106,14 @@
       "**/*.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
+    "coverageThreshold": {
+      "global": {
+        "statements": 3,
+        "branches": 0,
+        "functions": 3,
+        "lines": 2
+      }
+    },
     "testEnvironment": "node"
   },
   "lint-staged": {
