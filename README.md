@@ -103,6 +103,13 @@ src/
 | Guards, pipes, interceptors | `guards/`, `pipes/`, `interceptors/` |
 | Decorators do módulo | `decorators/` |
 | Interfaces e types do módulo | `interfaces/` |
+| Catálogo de erros do módulo | `errors/index.ts` |
+
+### Tratamento de erros
+
+- `common/errors/app-errors.ts` expõe `AppErrors`, fábricas genéricas (`notFound`, `alreadyExists`, `invalid`, `unauthorized`, `forbidden`) que criam exceções HTTP já com um `code` machine-readable no corpo (ex. `USER_NOT_FOUND`, `USER_EMAIL_ALREADY_EXISTS`).
+- Cada módulo fixa seu recurso uma única vez e reaproveita essas fábricas em `modules/<nome>/errors/index.ts` (ex. `userErrors.emailAlreadyExists()`, `authErrors.invalidRefreshToken()`), sem duplicar mensagens nem depender de um enum central.
+- `HttpExceptionFilter` (global, em `common/filters/`) captura qualquer exceção e padroniza a resposta: `{ statusCode, code, message, path, timestamp }`.
 
 ## Segurança
 
