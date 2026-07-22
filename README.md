@@ -73,6 +73,8 @@ src/
 │   └── <nome>/
 │       ├── decorators/
 │       ├── dto/
+│       ├── errors/
+│       ├── filters/
 │       ├── guards/
 │       ├── interfaces/
 │       ├── <nome>.controller.ts
@@ -103,8 +105,15 @@ src/
 | Decorators do módulo                                                                       | `decorators/`                        |
 | Interfaces e types do módulo                                                               | `interfaces/`                        |
 | Catálogo de erros do módulo                                                                | `errors/index.ts`                    |
+| Filtros de listagem do módulo (DTO de query + `where` do Prisma)                           | `filters/index.ts`                   |
 | Schemas Zod (validação de dado que não passou pelo `ValidationPipe`, ex. leitura de cache) | `schemas/`                           |
 | Decorators compostos de Swagger por rota (`@ApiLogin()`, `@ApiListUsers()`, ...)           | `docs/<nome>.swagger.ts`             |
+
+### Filtros de listagem
+
+- Cada módulo com endpoint de listagem declara seu próprio filtro em `modules/<nome>/filters/`: um DTO que estende `Pagination` (ex. `UserQueryDto`, com `email`/`phone` opcionais) e uma função que traduz o DTO num `where` do Prisma (ex. `buildUsersWhere`).
+- Não existe um filtro genérico compartilhado — os campos e o `where` são específicos de cada recurso, então ficam isolados no próprio módulo (ver `modules/users/filters/`).
+- O controller recebe só esse DTO combinado via `@Query()` (paginação + filtro juntos); o service monta o `where` e passa pro `findMany`/`count`.
 
 ### Tratamento de erros
 

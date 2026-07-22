@@ -37,6 +37,18 @@ export function ApiListUsers() {
     ApiBearerAuth('JWT-auth'),
     ApiQuery({ name: 'page', required: false, example: 1 }),
     ApiQuery({ name: 'limit', required: false, example: 15 }),
+    ApiQuery({
+      name: 'email',
+      required: false,
+      description: 'Filtra usuários cujo email contém este valor',
+      example: 'joao',
+    }),
+    ApiQuery({
+      name: 'phone',
+      required: false,
+      description: 'Filtra usuários cujo telefone contém este valor',
+      example: '5511999',
+    }),
     ApiResponse({
       status: 200,
       description: 'Lista de usuários obtida com sucesso',

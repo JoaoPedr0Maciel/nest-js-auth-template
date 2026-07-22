@@ -20,7 +20,7 @@ import { Role } from '@prisma/client';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
-import { Pagination } from '../../common/pagination';
+import { UserQueryDto } from './filters';
 import { ApiTags } from '@nestjs/swagger';
 import { RequestUser } from '../auth/interfaces/user.interface';
 import {
@@ -43,8 +43,8 @@ export class UsersController {
   @Get()
   @Roles(Role.ADMIN)
   @ApiListUsers()
-  findAll(@Query() pagination: Pagination) {
-    return this.usersService.findAll(pagination);
+  findAll(@Query() filter: UserQueryDto) {
+    return this.usersService.findAll(filter);
   }
 
   @Get(':id')

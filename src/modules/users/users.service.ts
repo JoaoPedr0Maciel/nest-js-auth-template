@@ -6,11 +6,11 @@ import * as bcrypt from 'bcrypt';
 import { normalizePhone } from '../../common/utils/phone.util';
 import {
   getPagination,
-  Pagination,
   PaginationResponse,
   paginationQuery,
 } from '../../common/pagination';
 import { Errors } from './errors';
+import { buildUsersWhere, UserQueryDto } from './filters';
 import { userCacheSchema } from './schemas/user-cache.schema';
 
 const USER_CACHE_TTL_SECONDS = 300;
@@ -26,7 +26,7 @@ export class UsersService {
     return `user:${id}`;
   }
 
-  async findAll(pagination: Pagination): Promise<
+  async findAll(filter: UserQueryDto): Promise<
     PaginationResponse<{
       id: string;
       email: string;
@@ -38,10 +38,12 @@ export class UsersService {
       updatedAt: Date;
     }>
   > {
-    const { skip, take } = paginationQuery(pagination);
+    const { skip, take } = paginationQuery(filter);
+    const where = buildUsersWhere(filter);
 
     const [data, count] = await Promise.all([
       this.prisma.user.findMany({
+        where,
         skip,
         take,
         orderBy: { createdAt: 'desc' },
@@ -56,14 +58,14 @@ export class UsersService {
           updatedAt: true,
         },
       }),
-      this.prisma.user.count(),
+      this.prisma.user.count({ where }),
     ]);
 
     return {
       data,
       meta: getPagination({
-        page: pagination.page ? Number(pagination.page) : undefined,
-        limit: pagination.limit ? Number(pagination.limit) : undefined,
+        page: filter.page ? Number(filter.page) : undefined,
+        limit: filter.limit ? Number(filter.limit) : undefined,
         count,
       }),
     };
