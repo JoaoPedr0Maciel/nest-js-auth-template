@@ -10,7 +10,7 @@ import {
   PaginationResponse,
   paginationQuery,
 } from '../../common/pagination';
-import { userErrors } from './errors';
+import { Errors } from './errors';
 import { userCacheSchema } from './schemas/user-cache.schema';
 
 const USER_CACHE_TTL_SECONDS = 300;
@@ -91,7 +91,7 @@ export class UsersService {
     });
 
     if (!user) {
-      throw userErrors.notFound();
+      throw Errors.notFound();
     }
 
     await this.redis.set(this.userCacheKey(id), user, USER_CACHE_TTL_SECONDS);
@@ -114,11 +114,11 @@ export class UsersService {
     ]);
 
     if (existingEmail) {
-      throw userErrors.emailAlreadyExists();
+      throw Errors.emailAlreadyExists();
     }
 
     if (existingPhone) {
-      throw userErrors.phoneAlreadyExists();
+      throw Errors.phoneAlreadyExists();
     }
 
     const hashedPassword = await bcrypt.hash(data.password, 10);
@@ -165,7 +165,7 @@ export class UsersService {
       });
 
       if (existingUser) {
-        throw userErrors.phoneAlreadyExists();
+        throw Errors.phoneAlreadyExists();
       }
 
       updateData.phone = normalizedPhone;
@@ -177,7 +177,7 @@ export class UsersService {
       });
 
       if (existingUser) {
-        throw userErrors.emailAlreadyExists();
+        throw Errors.emailAlreadyExists();
       }
     }
 

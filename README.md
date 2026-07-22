@@ -59,7 +59,6 @@ Credenciais do seed: `admin@example.com` (role `ADMIN`) e `user@example.com` (ro
 src/
 ├── common/
 │   ├── decorators/
-│   ├── errors/
 │   ├── filters/
 │   ├── interfaces/
 │   ├── pagination/
@@ -109,8 +108,8 @@ src/
 
 ### Tratamento de erros
 
-- `common/errors/app-errors.ts` expõe `AppErrors`, fábricas genéricas (`notFound`, `alreadyExists`, `invalid`, `unauthorized`, `forbidden`) que criam exceções HTTP já com um `code` machine-readable no corpo (ex. `USER_NOT_FOUND`, `USER_EMAIL_ALREADY_EXISTS`).
-- Cada módulo fixa seu recurso uma única vez e reaproveita essas fábricas em `modules/<nome>/errors/index.ts` (ex. `userErrors.emailAlreadyExists()`, `authErrors.invalidRefreshToken()`), sem duplicar mensagens nem depender de um enum central.
+- Cada módulo declara seus próprios erros em `modules/<nome>/errors/index.ts`, exportando um objeto `Errors` com exceções concretas do Nest já com `message` (PT-BR) e `code` machine-readable no corpo (ex. `Errors.notFound()` → `USER_NOT_FOUND`, `Errors.invalidRefreshToken()` → `INVALID_REFRESH_TOKEN`). Sem fábrica genérica compartilhada: cada erro é explícito e fica só no arquivo do seu módulo.
+- Ao importar `Errors` de mais de um módulo no mesmo arquivo (ex. `AuthService` usa erros de `auth` e de `users`), renomeie no import: `import { Errors as userErrors } from '../users/errors'`.
 - `HttpExceptionFilter` (global, em `common/filters/`) captura qualquer exceção e padroniza a resposta: `{ statusCode, code, message, path, timestamp }`.
 
 ## Segurança

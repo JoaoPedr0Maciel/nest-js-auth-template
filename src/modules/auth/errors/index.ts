@@ -1,7 +1,9 @@
-import { AppErrors } from '../../../common/errors/app-errors';
+import { UnauthorizedException } from '@nestjs/common';
 
-/** Catálogo de erros do módulo Auth (não ligados a um recurso específico). */
-export const authErrors = {
+export const Errors = {
   invalidRefreshToken: () =>
-    AppErrors.unauthorized('Invalid refresh token', 'INVALID_REFRESH_TOKEN'),
+    new UnauthorizedException({
+      message: 'Refresh token inválido',
+      code: 'INVALID_REFRESH_TOKEN',
+    }),
 };

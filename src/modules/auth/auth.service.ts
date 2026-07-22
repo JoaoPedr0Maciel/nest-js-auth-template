@@ -9,22 +9,15 @@ import { RegisterDto } from './dto/register.dto';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { RedisService } from '../../infra/redis/redis.service';
-import { userErrors } from '../users/errors';
-import { authErrors } from './errors';
+import { Errors as userErrors } from '../users/errors';
+import { Errors as authErrors } from './errors';
 import type {
   JwtPayload,
   RefreshTokenPayload,
 } from 'src/common/interfaces/jwt-payload.interface';
 import { normalizePhone } from 'src/common/utils/phone.util';
 import { durationToSeconds } from 'src/common/utils/duration.util';
-
-type TokenSubject = {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  role: Role;
-};
+import type { TokenSubject } from './interfaces/user.interface';
 
 @Injectable()
 export class AuthService {
