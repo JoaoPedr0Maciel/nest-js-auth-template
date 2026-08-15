@@ -40,6 +40,7 @@ async function bootstrap() {
     .setVersion('1.0')
     .addTag('auth', 'Endpoints de autenticação e autorização')
     .addTag('users', 'Endpoints para gerenciamento de usuários')
+    .addTag('two-factor', 'Endpoints de autenticação em dois fatores (2FA)')
     .addTag('health', 'Healthcheck da aplicação')
     .addBearerAuth(
       {

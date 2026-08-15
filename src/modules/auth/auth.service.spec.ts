@@ -14,7 +14,13 @@ describe('AuthService', () => {
   let prisma: { user: { findUnique: jest.Mock; create: jest.Mock } };
   let jwtService: { sign: jest.Mock; verify: jest.Mock };
   let configService: { get: jest.Mock };
-  let redis: { get: jest.Mock; set: jest.Mock; del: jest.Mock };
+  let redis: {
+    get: jest.Mock;
+    set: jest.Mock;
+    del: jest.Mock;
+    incr: jest.Mock;
+    expire: jest.Mock;
+  };
 
   const storedUser = {
     id: 'user-1',
@@ -24,6 +30,7 @@ describe('AuthService', () => {
     role: Role.USER,
     password: 'hashed-password',
     isActive: true,
+    twoFactorEnabled: false,
     createdAt: new Date('2024-01-01'),
   };
 
@@ -39,7 +46,13 @@ describe('AuthService', () => {
         return values[key] ?? fallback;
       }),
     };
-    redis = { get: jest.fn(), set: jest.fn(), del: jest.fn() };
+    redis = {
+      get: jest.fn(),
+      set: jest.fn(),
+      del: jest.fn(),
+      incr: jest.fn(),
+      expire: jest.fn(),
+    };
 
     service = new AuthService(
       prisma as unknown as PrismaService,
@@ -98,6 +111,70 @@ describe('AuthService', () => {
       await expect(
         service.login({ email: storedUser.email, password: 'wrong' }),
       ).rejects.toMatchObject({ status: 400 });
+    });
+
+    it('retorna um desafio de 2FA em vez de tokens quando o usuário tem 2FA ativado', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        ...storedUser,
+        twoFactorEnabled: true,
+      });
+
+      const result = await service.login({
+        email: storedUser.email,
+        password: 'plain-password',
+      });
+
+      expect(result).toMatchObject({ twoFactorRequired: true });
+      expect((result as { challengeToken: string }).challengeToken).toEqual(
+        expect.any(String),
+      );
+      expect(redis.set).toHaveBeenCalledWith(
+        expect.stringMatching(/^2fa-challenge:/),
+        storedUser.id,
+        300,
+      );
+    });
+  });
+
+  describe('createTwoFactorChallenge / resolveTwoFactorChallenge', () => {
+    it('guarda o userId no Redis e resolve de volta com o mesmo challengeToken', async () => {
+      const { challengeToken } = await service.createTwoFactorChallenge(
+        storedUser.id,
+      );
+      redis.get.mockResolvedValue(storedUser.id);
+
+      const resolved = await service.resolveTwoFactorChallenge(challengeToken);
+
+      expect(resolved).toBe(storedUser.id);
+    });
+
+    it('rejeita quando o challengeToken não existe ou expirou', async () => {
+      redis.get.mockResolvedValue(null);
+
+      await expect(
+        service.resolveTwoFactorChallenge('unknown-token'),
+      ).rejects.toMatchObject({ status: 401 });
+    });
+  });
+
+  describe('registerTwoFactorChallengeFailure', () => {
+    it('não lança enquanto o número de tentativas está abaixo do limite', async () => {
+      redis.incr.mockResolvedValue(1);
+
+      await expect(
+        service.registerTwoFactorChallengeFailure('token-1'),
+      ).resolves.toBeUndefined();
+      expect(redis.expire).toHaveBeenCalled();
+    });
+
+    it('invalida o desafio e lança erro ao atingir o limite de tentativas', async () => {
+      redis.incr.mockResolvedValue(5);
+
+      await expect(
+        service.registerTwoFactorChallengeFailure('token-1'),
+      ).rejects.toMatchObject({ status: 401 });
+      expect(redis.del).toHaveBeenCalledWith('2fa-challenge:token-1');
+      expect(redis.del).toHaveBeenCalledWith('2fa-challenge-attempts:token-1');
     });
   });
 

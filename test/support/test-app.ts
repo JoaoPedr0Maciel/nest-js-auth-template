@@ -45,9 +45,13 @@ export function uniqueEmail(): string {
   return `${E2E_EMAIL_PREFIX}-${randomUUID()}@example.com`;
 }
 
-/** Número móvel brasileiro em E.164 válido, único o bastante pra evitar colisão entre testes. */
+/**
+ * Número móvel brasileiro em E.164 válido, único o bastante pra evitar colisão entre testes.
+ * O sufixo precisa ter 8 dígitos — DDD (2) + 9 (nono dígito) + 8 dígitos = 11 dígitos
+ * nacionais — senão `libphonenumber-js/max` (usado por `@IsPhoneNumber()`) rejeita o número.
+ */
 export function uniquePhone(): string {
-  const suffix = Math.floor(1_000_000 + Math.random() * 8_999_999);
+  const suffix = Math.floor(10_000_000 + Math.random() * 89_999_999);
   return `+55119${suffix}`;
 }
 

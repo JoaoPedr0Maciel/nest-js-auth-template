@@ -18,6 +18,9 @@ import type {
 import { normalizePhone } from '../../common/utils/phone.util';
 import { durationToSeconds } from '../../common/utils/duration.util';
 import type { TokenSubject } from './interfaces/user.interface';
+import type { TwoFactorChallengeResponseDto } from './dto/two-factor-challenge-response.dto';
+
+const TWO_FACTOR_CHALLENGE_MAX_ATTEMPTS = 5;
 
 @Injectable()
 export class AuthService {
@@ -44,6 +47,14 @@ export class AuthService {
 
     if (!isPasswordValid) throw userErrors.invalidPassword();
 
+    if (user.twoFactorEnabled) {
+      return this.createTwoFactorChallenge(user.id);
+    }
+
+    return this.buildLoginResponse(user);
+  }
+
+  async buildLoginResponse(user: TokenSubject) {
     const tokens = await this.issueTokens(user);
 
     return {
@@ -55,6 +66,54 @@ export class AuthService {
         role: user.role,
       },
     };
+  }
+
+  /** Emitido após a senha ser validada — o login só se completa em TwoFactorService.verifyChallenge/verifyRecoveryChallenge. */
+  async createTwoFactorChallenge(
+    userId: string,
+  ): Promise<TwoFactorChallengeResponseDto> {
+    const challengeToken = randomUUID();
+
+    await this.redis.set(
+      this.twoFactorChallengeKey(challengeToken),
+      userId,
+      this.twoFactorChallengeTtlSeconds(),
+    );
+
+    return { twoFactorRequired: true, challengeToken };
+  }
+
+  async resolveTwoFactorChallenge(challengeToken: string): Promise<string> {
+    const userId = await this.redis.get(
+      this.twoFactorChallengeKey(challengeToken),
+    );
+
+    if (!userId) throw authErrors.twoFactorChallengeExpired();
+
+    return userId;
+  }
+
+  async registerTwoFactorChallengeFailure(
+    challengeToken: string,
+  ): Promise<void> {
+    const attemptsKey = this.twoFactorChallengeAttemptsKey(challengeToken);
+    const attempts = await this.redis.incr(attemptsKey);
+
+    if (attempts === 1) {
+      await this.redis.expire(attemptsKey, this.twoFactorChallengeTtlSeconds());
+    }
+
+    if (attempts >= TWO_FACTOR_CHALLENGE_MAX_ATTEMPTS) {
+      await this.consumeTwoFactorChallenge(challengeToken);
+      throw authErrors.twoFactorTooManyAttempts();
+    }
+  }
+
+  async consumeTwoFactorChallenge(challengeToken: string): Promise<void> {
+    await Promise.all([
+      this.redis.del(this.twoFactorChallengeKey(challengeToken)),
+      this.redis.del(this.twoFactorChallengeAttemptsKey(challengeToken)),
+    ]);
   }
 
   async register(registerDto: RegisterDto) {
@@ -187,5 +246,20 @@ export class AuthService {
 
   private refreshTokenKey(userId: string): string {
     return `refresh-token:${userId}`;
+  }
+
+  private twoFactorChallengeKey(challengeToken: string): string {
+    return `2fa-challenge:${challengeToken}`;
+  }
+
+  private twoFactorChallengeAttemptsKey(challengeToken: string): string {
+    return `2fa-challenge-attempts:${challengeToken}`;
+  }
+
+  private twoFactorChallengeTtlSeconds(): number {
+    return this.configService.get<number>(
+      'TWO_FACTOR_CHALLENGE_TTL_SECONDS',
+      300,
+    );
   }
 }

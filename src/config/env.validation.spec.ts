@@ -5,6 +5,7 @@ const validConfig = {
   JWT_SECRET: 'a'.repeat(16),
   JWT_REFRESH_SECRET: 'b'.repeat(16),
   REDIS_URL: 'redis://localhost:6379',
+  TWO_FACTOR_ENCRYPTION_KEY: 'c'.repeat(32),
 };
 
 describe('validateEnv', () => {
@@ -17,6 +18,8 @@ describe('validateEnv', () => {
       JWT_EXPIRES_IN: '24h',
       JWT_REFRESH_EXPIRES_IN: '7d',
       CORS_ORIGIN: '*',
+      TWO_FACTOR_ISSUER: 'NestJS Auth Template',
+      TWO_FACTOR_CHALLENGE_TTL_SECONDS: 300,
     });
   });
 
@@ -48,5 +51,19 @@ describe('validateEnv', () => {
     expect(() => validateEnv({ ...validConfig, NODE_ENV: 'staging' })).toThrow(
       /Variáveis de ambiente inválidas/,
     );
+  });
+
+  it('lança erro quando TWO_FACTOR_ENCRYPTION_KEY tem menos de 32 caracteres', () => {
+    expect(() =>
+      validateEnv({ ...validConfig, TWO_FACTOR_ENCRYPTION_KEY: 'short' }),
+    ).toThrow(/Variáveis de ambiente inválidas/);
+  });
+
+  it('converte TWO_FACTOR_CHALLENGE_TTL_SECONDS para número', () => {
+    const result = validateEnv({
+      ...validConfig,
+      TWO_FACTOR_CHALLENGE_TTL_SECONDS: '120',
+    });
+    expect(result.TWO_FACTOR_CHALLENGE_TTL_SECONDS).toBe(120);
   });
 });

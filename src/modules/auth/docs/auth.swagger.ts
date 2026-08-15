@@ -2,8 +2,10 @@ import { applyDecorators } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiBody,
+  ApiExtraModels,
   ApiOperation,
   ApiResponse,
+  getSchemaPath,
 } from '@nestjs/swagger';
 import { LoginDto } from '../dto/login.dto';
 import { RegisterDto } from '../dto/register.dto';
@@ -12,6 +14,7 @@ import { LoginResponseDto } from '../dto/login-response.dto';
 import { RegisterResponseDto } from '../dto/register-response.dto';
 import { AuthTokensResponseDto } from '../dto/auth-tokens-response.dto';
 import { ProfileResponseDto } from '../dto/profile-response.dto';
+import { TwoFactorChallengeResponseDto } from '../dto/two-factor-challenge-response.dto';
 
 /**
  * Cada `Api*` aqui é o Swagger de uma única rota do AuthController,
@@ -22,12 +25,22 @@ import { ProfileResponseDto } from '../dto/profile-response.dto';
 
 export function ApiLogin() {
   return applyDecorators(
-    ApiOperation({ summary: 'Fazer login no sistema' }),
+    ApiOperation({
+      summary: 'Fazer login no sistema',
+      description:
+        'Se o usuário tiver o 2FA ativado, a resposta 200 não inclui tokens: retorna { twoFactorRequired: true, challengeToken }, e o login só se completa em POST /auth/2fa/verify (ou /auth/2fa/verify/recovery).',
+    }),
     ApiBody({ type: LoginDto }),
+    ApiExtraModels(LoginResponseDto, TwoFactorChallengeResponseDto),
     ApiResponse({
       status: 200,
-      description: 'Login realizado com sucesso',
-      type: LoginResponseDto,
+      description: 'Login realizado com sucesso, ou desafio de 2FA emitido',
+      schema: {
+        oneOf: [
+          { $ref: getSchemaPath(LoginResponseDto) },
+          { $ref: getSchemaPath(TwoFactorChallengeResponseDto) },
+        ],
+      },
     }),
     ApiResponse({ status: 401, description: 'Credenciais inválidas' }),
   );

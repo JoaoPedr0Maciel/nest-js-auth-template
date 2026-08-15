@@ -12,6 +12,9 @@ const envSchema = z.object({
   JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
   REDIS_URL: z.url(),
   CORS_ORIGIN: z.string().default('*'),
+  TWO_FACTOR_ENCRYPTION_KEY: z.string().min(32),
+  TWO_FACTOR_ISSUER: z.string().default('NestJS Auth Template'),
+  TWO_FACTOR_CHALLENGE_TTL_SECONDS: z.coerce.number().default(300),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;

@@ -7,6 +7,7 @@ import { AppService } from './app.service';
 import { PrismaModule } from './infra/prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
+import { TwoFactorModule } from './modules/two-factor/two-factor.module';
 import { RedisModule } from './infra/redis/redis.module';
 import { HealthModule } from './infra/health/health.module';
 import { validateEnv } from './config/env.validation';
@@ -27,6 +28,7 @@ import { validateEnv } from './config/env.validation';
     RedisModule,
     AuthModule,
     UsersModule,
+    TwoFactorModule,
     HealthModule,
   ],
   controllers: [AppController],

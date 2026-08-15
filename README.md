@@ -5,6 +5,7 @@ Template NestJS com autenticação JWT, autorização baseada em roles e Prisma 
 ## Funcionalidades
 
 - Autenticação JWT com access token + refresh token (rotação a cada uso, revogável via `/auth/logout`)
+- Autenticação em dois fatores (2FA/TOTP, compatível com Google Authenticator) — ver seção [Autenticação em dois fatores (2FA)](#autenticação-em-dois-fatores-2fa)
 - Hash de senhas com bcrypt
 - Autorização baseada em roles (USER, ADMIN)
 - Decorators `@Roles`, `@CurrentUser`, `@Public`
@@ -136,6 +137,27 @@ src/
 | ------- | ---------------------------------------------------- |
 | `USER`  | Acesso básico                                        |
 | `ADMIN` | Gerenciamento de usuários e recursos administrativos |
+
+## Autenticação em dois fatores (2FA)
+
+TOTP (RFC 6238), compatível com Google Authenticator e apps similares. Endpoints em `modules/two-factor/`, sob `/auth/2fa`:
+
+| Rota                                       | Autenticação         | Descrição                                                                       |
+| ------------------------------------------ | -------------------- | ------------------------------------------------------------------------------- |
+| `POST /auth/2fa/setup`                     | JWT                  | Gera um segredo pendente + QR code (`otpauth://`). Nada é persistido ainda.     |
+| `POST /auth/2fa/setup/confirm`             | JWT                  | Confirma com um código válido, ativa o 2FA e retorna os códigos de recuperação. |
+| `POST /auth/2fa/disable`                   | JWT + senha + código | Desativa o 2FA e invalida segredo e códigos de recuperação anteriores.          |
+| `POST /auth/2fa/recovery-codes/regenerate` | JWT + senha + código | Gera um novo lote de códigos de recuperação, invalidando o anterior.            |
+| `POST /auth/2fa/verify`                    | `challengeToken`     | Segunda etapa do login: completa a autenticação com um código do autenticador.  |
+| `POST /auth/2fa/verify/recovery`           | `challengeToken`     | Segunda etapa do login usando um código de recuperação (não desativa o 2FA).    |
+
+**Fluxo de login com 2FA ativo**: `POST /auth/login` valida a senha e, se `twoFactorEnabled`, não emite tokens — responde `{ twoFactorRequired: true, challengeToken }`. O `challengeToken` (armazenado no Redis, `2fa-challenge:<token>`, TTL `TWO_FACTOR_CHALLENGE_TTL_SECONDS`) é trocado por tokens em `POST /auth/2fa/verify`. Tentativas inválidas contam num contador por `challengeToken` (`2fa-challenge-attempts:<token>`); ao atingir o limite, o desafio inteiro é invalidado e é preciso logar de novo — mesma proteção contra força bruta do login por senha.
+
+**Segredo TOTP**: cifrado (AES-256-GCM, chave derivada de `TWO_FACTOR_ENCRYPTION_KEY`) em `User.twoFactorSecret` — precisa ser recuperável a cada login, então não pode ser hash como senha. Antes da confirmação, o segredo pendente fica só no Redis (`2fa-setup:<userId>`, TTL de 10 min) — nunca é persistido no Postgres com o 2FA desabilitado.
+
+**Códigos de recuperação**: 10 códigos (`XXXX-XXXX`) gerados na confirmação, guardados com hash bcrypt (`TwoFactorRecoveryCode`, uso único via `usedAt`). Regenerar apaga o lote anterior por completo.
+
+**Auditoria**: `TwoFactorAuditLog` registra `ENABLED`, `DISABLED`, `RECOVERY_CODES_REGENERATED` e `RECOVERY_CODE_USED` por usuário.
 
 ## Prisma 7
 
