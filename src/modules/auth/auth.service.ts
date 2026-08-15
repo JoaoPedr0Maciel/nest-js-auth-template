@@ -15,8 +15,8 @@ import type {
   JwtPayload,
   RefreshTokenPayload,
 } from 'src/common/interfaces/jwt-payload.interface';
-import { normalizePhone } from 'src/common/utils/phone.util';
-import { durationToSeconds } from 'src/common/utils/duration.util';
+import { normalizePhone } from '../../common/utils/phone.util';
+import { durationToSeconds } from '../../common/utils/duration.util';
 import type { TokenSubject } from './interfaces/user.interface';
 
 @Injectable()
