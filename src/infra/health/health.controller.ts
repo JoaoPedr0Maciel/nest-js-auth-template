@@ -5,7 +5,7 @@ import {
   HealthCheck,
 } from '@nestjs/terminus';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { Public } from '../../modules/auth/decorators/public.decorator';
+import { Public } from '../../shared/decorators/public.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 

@@ -14,9 +14,9 @@ import { Errors as authErrors } from './errors';
 import type {
   JwtPayload,
   RefreshTokenPayload,
-} from 'src/common/interfaces/jwt-payload.interface';
-import { normalizePhone } from '../../common/utils/phone.util';
-import { durationToSeconds } from '../../common/utils/duration.util';
+} from 'src/shared/interfaces/jwt-payload.interface';
+import { normalizePhone } from '../../shared/utils/phone.util';
+import { durationToSeconds } from '../../shared/utils/duration.util';
 import type { TokenSubject } from './interfaces/user.interface';
 import type { TwoFactorChallengeResponseDto } from './dto/two-factor-challenge-response.dto';
 

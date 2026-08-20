@@ -4,7 +4,7 @@ import { Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'node:crypto';
 import { AppModule } from '../../src/app.module';
-import { HttpExceptionFilter } from '../../src/common/filters/http-exception.filter';
+import { HttpExceptionFilter } from '../../src/shared/filters/http-exception.filter';
 import { PrismaService } from '../../src/infra/prisma/prisma.service';
 
 /**

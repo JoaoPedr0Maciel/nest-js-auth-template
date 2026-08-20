@@ -9,8 +9,8 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
 import { PrismaService } from '../../../infra/prisma/prisma.service';
-import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
-import type { JwtPayload } from 'src/common/interfaces/jwt-payload.interface';
+import { IS_PUBLIC_KEY } from '../../../shared/decorators/public.decorator';
+import type { JwtPayload } from 'src/shared/interfaces/jwt-payload.interface';
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {

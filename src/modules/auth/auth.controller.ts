@@ -13,8 +13,8 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { Public } from './decorators/public.decorator';
-import { CurrentUser } from './decorators/current-user.decorator';
+import { Public } from '../../shared/decorators/public.decorator';
+import { CurrentUser } from '../../shared/decorators/current-user.decorator';
 import { RequestUser } from './interfaces/user.interface';
 import { ApiTags } from '@nestjs/swagger';
 import {

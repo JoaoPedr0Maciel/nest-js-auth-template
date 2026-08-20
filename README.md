@@ -19,7 +19,7 @@ Template NestJS com autenticação JWT, autorização baseada em roles e Prisma 
 - Healthcheck em `/health` (Prisma + Redis) via `@nestjs/terminus`
 - Filtro de exceção global com formato de erro padronizado
 - Validação de variáveis de ambiente na inicialização (Zod) — boot falha cedo, com mensagem clara, se faltar algo
-- Paginação (`common/pagination`) em endpoints de listagem, ex. `GET /users?page=1&limit=15`
+- Paginação (`shared/pagination`) em endpoints de listagem, ex. `GET /users?page=1&limit=15`
 - CI (GitHub Actions): lint, build, testes unitários e e2e
 
 ## Configuração
@@ -58,7 +58,7 @@ Credenciais do seed: `admin@example.com` (role `ADMIN`) e `user@example.com` (ro
 
 ```
 src/
-├── common/
+├── shared/
 │   ├── decorators/
 │   ├── filters/
 │   ├── interfaces/
@@ -90,7 +90,7 @@ src/
 | Pasta                       | O que vai aqui                                                                                                                    |
 | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | `modules/`                  | Funcionalidades de negócio. Novo domínio = nova pasta aqui.                                                                       |
-| `common/`                   | Tudo compartilhado por mais de um módulo: decorators, erros, filtros, paginação, interfaces, utils.                               |
+| `shared/`                   | Tudo compartilhado por mais de um módulo: decorators, filtros, paginação, interfaces, utils.                                      |
 | `infra/`                    | Conexões com banco, cache e serviços externos (cada recurso em sua própria pasta: `infra/prisma`, `infra/redis`, `infra/health`). |
 | `config/`                   | Validação e schemas de configuração (env vars).                                                                                   |
 | Raiz de `src/`              | Apenas `app.module.ts`, `app.controller.ts`, `app.service.ts` e `main.ts`.                                                        |
@@ -120,7 +120,7 @@ src/
 
 - Cada módulo declara seus próprios erros em `modules/<nome>/errors/index.ts`, exportando um objeto `Errors` com exceções concretas do Nest já com `message` (PT-BR) e `code` machine-readable no corpo (ex. `Errors.notFound()` → `USER_NOT_FOUND`, `Errors.invalidRefreshToken()` → `INVALID_REFRESH_TOKEN`). Sem fábrica genérica compartilhada: cada erro é explícito e fica só no arquivo do seu módulo.
 - Ao importar `Errors` de mais de um módulo no mesmo arquivo (ex. `AuthService` usa erros de `auth` e de `users`), renomeie no import: `import { Errors as userErrors } from '../users/errors'`.
-- `HttpExceptionFilter` (global, em `common/filters/`) captura qualquer exceção e padroniza a resposta: `{ statusCode, code, message, path, timestamp }`.
+- `HttpExceptionFilter` (global, em `shared/filters/`) captura qualquer exceção e padroniza a resposta: `{ statusCode, code, message, path, timestamp }`.
 
 ## Segurança
 

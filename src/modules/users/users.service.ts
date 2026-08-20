@@ -3,12 +3,12 @@ import { PrismaService } from '../../infra/prisma/prisma.service';
 import { RedisService } from '../../infra/redis/redis.service';
 import { Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
-import { normalizePhone } from '../../common/utils/phone.util';
+import { normalizePhone } from '../../shared/utils/phone.util';
 import {
   getPagination,
   PaginationResponse,
   paginationQuery,
-} from '../../common/pagination';
+} from '../../shared/pagination';
 import { Errors } from './errors';
 import { buildUsersWhere, UserQueryDto } from './filters';
 import { userCacheSchema } from './schemas/user-cache.schema';

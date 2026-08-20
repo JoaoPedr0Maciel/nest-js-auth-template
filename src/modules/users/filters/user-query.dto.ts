@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsString } from 'class-validator';
-import { Pagination } from '../../../common/pagination';
+import { Pagination } from '../../../shared/pagination';
 
 export class UserQueryDto extends Pagination {
   @ApiPropertyOptional({
