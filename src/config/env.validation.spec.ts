@@ -4,7 +4,6 @@ const validConfig = {
   DATABASE_URL: 'postgresql://user:pass@localhost:5432/db',
   JWT_SECRET: 'a'.repeat(16),
   JWT_REFRESH_SECRET: 'b'.repeat(16),
-  REDIS_URL: 'redis://localhost:6379',
   TWO_FACTOR_ENCRYPTION_KEY: 'c'.repeat(32),
 };
 

@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../infra/prisma/prisma.service';
-import { RedisService } from '../../infra/redis/redis.service';
 import { Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { normalizePhone } from '../../shared/utils/phone.util';
@@ -11,20 +10,10 @@ import {
 } from '../../shared/pagination';
 import { Errors } from './errors';
 import { buildUsersWhere, UserQueryDto } from './filters';
-import { userCacheSchema } from './schemas/user-cache.schema';
-
-const USER_CACHE_TTL_SECONDS = 300;
 
 @Injectable()
 export class UsersService {
-  constructor(
-    private prisma: PrismaService,
-    private redis: RedisService,
-  ) {}
-
-  private userCacheKey(id: string): string {
-    return `user:${id}`;
-  }
+  constructor(private prisma: PrismaService) {}
 
   async findAll(filter: UserQueryDto): Promise<
     PaginationResponse<{
@@ -72,12 +61,6 @@ export class UsersService {
   }
 
   async findOne(id: string) {
-    const cached = await this.redis.getObject(
-      this.userCacheKey(id),
-      userCacheSchema,
-    );
-    if (cached) return cached;
-
     const user = await this.prisma.user.findUnique({
       where: { id },
       select: {
@@ -95,8 +78,6 @@ export class UsersService {
     if (!user) {
       throw Errors.notFound();
     }
-
-    await this.redis.set(this.userCacheKey(id), user, USER_CACHE_TTL_SECONDS);
 
     return user;
   }
@@ -198,8 +179,6 @@ export class UsersService {
       },
     });
 
-    await this.redis.del(this.userCacheKey(id));
-
     return updated;
   }
 
@@ -234,8 +213,6 @@ export class UsersService {
       },
     });
 
-    await this.redis.del(this.userCacheKey(id));
-
     return removed;
   }
 
@@ -253,8 +230,6 @@ export class UsersService {
         isActive: true,
       },
     });
-
-    await this.redis.del(this.userCacheKey(id));
 
     return deactivated;
   }

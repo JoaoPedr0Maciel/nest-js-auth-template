@@ -31,6 +31,7 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@casl/ability": "^7.0.1",
     "@nestjs/common": "^11.1.27",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.1.27",
@@ -55,7 +56,6 @@
     "pg": "^8.22.0",
     "prisma": "^7.8.0",
     "qrcode": "^1.5.4",
-    "redis": "^6.1.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "slugify": "^1.6.9",

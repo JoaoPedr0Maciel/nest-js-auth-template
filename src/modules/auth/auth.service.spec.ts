@@ -5,22 +5,26 @@ import { Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../../infra/prisma/prisma.service';
-import { RedisService } from '../../infra/redis/redis.service';
 
 jest.mock('bcrypt');
 
 describe('AuthService', () => {
   let service: AuthService;
-  let prisma: { user: { findUnique: jest.Mock; create: jest.Mock } };
+  let prisma: {
+    user: {
+      findUnique: jest.Mock;
+      create: jest.Mock;
+      update: jest.Mock;
+    };
+    twoFactorLoginChallenge: {
+      create: jest.Mock;
+      findUnique: jest.Mock;
+      update: jest.Mock;
+      deleteMany: jest.Mock;
+    };
+  };
   let jwtService: { sign: jest.Mock; verify: jest.Mock };
   let configService: { get: jest.Mock };
-  let redis: {
-    get: jest.Mock;
-    set: jest.Mock;
-    del: jest.Mock;
-    incr: jest.Mock;
-    expire: jest.Mock;
-  };
 
   const storedUser = {
     id: 'user-1',
@@ -35,7 +39,19 @@ describe('AuthService', () => {
   };
 
   beforeEach(() => {
-    prisma = { user: { findUnique: jest.fn(), create: jest.fn() } };
+    prisma = {
+      user: {
+        findUnique: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn(),
+      },
+      twoFactorLoginChallenge: {
+        create: jest.fn(),
+        findUnique: jest.fn(),
+        update: jest.fn(),
+        deleteMany: jest.fn(),
+      },
+    };
     jwtService = { sign: jest.fn(), verify: jest.fn() };
     configService = {
       get: jest.fn((key: string, fallback?: unknown) => {
@@ -46,19 +62,11 @@ describe('AuthService', () => {
         return values[key] ?? fallback;
       }),
     };
-    redis = {
-      get: jest.fn(),
-      set: jest.fn(),
-      del: jest.fn(),
-      incr: jest.fn(),
-      expire: jest.fn(),
-    };
 
     service = new AuthService(
       prisma as unknown as PrismaService,
       jwtService as unknown as JwtService,
       configService as unknown as ConfigService,
-      redis as unknown as RedisService,
     );
 
     jwtService.sign.mockReturnValue('signed-token');
@@ -89,11 +97,13 @@ describe('AuthService', () => {
           role: storedUser.role,
         },
       });
-      expect(redis.set).toHaveBeenCalledWith(
-        `refresh-token:${storedUser.id}`,
-        expect.any(String),
-        604800,
-      );
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: storedUser.id },
+        data: {
+          refreshTokenId: expect.any(String) as string,
+          refreshTokenExpiresAt: expect.any(Date) as Date,
+        },
+      });
     });
 
     it('lança erro quando o usuário não existe', async () => {
@@ -128,53 +138,81 @@ describe('AuthService', () => {
       expect((result as { challengeToken: string }).challengeToken).toEqual(
         expect.any(String),
       );
-      expect(redis.set).toHaveBeenCalledWith(
-        expect.stringMatching(/^2fa-challenge:/),
-        storedUser.id,
-        300,
-      );
+      expect(prisma.twoFactorLoginChallenge.create).toHaveBeenCalledWith({
+        data: {
+          id: expect.any(String) as string,
+          userId: storedUser.id,
+          expiresAt: expect.any(Date) as Date,
+        },
+      });
     });
   });
 
   describe('createTwoFactorChallenge / resolveTwoFactorChallenge', () => {
-    it('guarda o userId no Redis e resolve de volta com o mesmo challengeToken', async () => {
+    it('grava o challenge no banco e resolve de volta com o mesmo challengeToken', async () => {
       const { challengeToken } = await service.createTwoFactorChallenge(
         storedUser.id,
       );
-      redis.get.mockResolvedValue(storedUser.id);
+      prisma.twoFactorLoginChallenge.findUnique.mockResolvedValue({
+        id: challengeToken,
+        userId: storedUser.id,
+        attempts: 0,
+        expiresAt: new Date(Date.now() + 60_000),
+      });
 
       const resolved = await service.resolveTwoFactorChallenge(challengeToken);
 
       expect(resolved).toBe(storedUser.id);
     });
 
-    it('rejeita quando o challengeToken não existe ou expirou', async () => {
-      redis.get.mockResolvedValue(null);
+    it('rejeita quando o challengeToken não existe', async () => {
+      prisma.twoFactorLoginChallenge.findUnique.mockResolvedValue(null);
 
       await expect(
         service.resolveTwoFactorChallenge('unknown-token'),
       ).rejects.toMatchObject({ status: 401 });
     });
+
+    it('rejeita e limpa a linha quando o challengeToken expirou', async () => {
+      prisma.twoFactorLoginChallenge.findUnique.mockResolvedValue({
+        id: 'expired-token',
+        userId: storedUser.id,
+        attempts: 0,
+        expiresAt: new Date(Date.now() - 1000),
+      });
+
+      await expect(
+        service.resolveTwoFactorChallenge('expired-token'),
+      ).rejects.toMatchObject({ status: 401 });
+      expect(prisma.twoFactorLoginChallenge.deleteMany).toHaveBeenCalledWith({
+        where: { id: 'expired-token' },
+      });
+    });
   });
 
   describe('registerTwoFactorChallengeFailure', () => {
     it('não lança enquanto o número de tentativas está abaixo do limite', async () => {
-      redis.incr.mockResolvedValue(1);
+      prisma.twoFactorLoginChallenge.update.mockResolvedValue({
+        attempts: 1,
+      });
 
       await expect(
         service.registerTwoFactorChallengeFailure('token-1'),
       ).resolves.toBeUndefined();
-      expect(redis.expire).toHaveBeenCalled();
+      expect(prisma.twoFactorLoginChallenge.deleteMany).not.toHaveBeenCalled();
     });
 
     it('invalida o desafio e lança erro ao atingir o limite de tentativas', async () => {
-      redis.incr.mockResolvedValue(5);
+      prisma.twoFactorLoginChallenge.update.mockResolvedValue({
+        attempts: 5,
+      });
 
       await expect(
         service.registerTwoFactorChallengeFailure('token-1'),
       ).rejects.toMatchObject({ status: 401 });
-      expect(redis.del).toHaveBeenCalledWith('2fa-challenge:token-1');
-      expect(redis.del).toHaveBeenCalledWith('2fa-challenge-attempts:token-1');
+      expect(prisma.twoFactorLoginChallenge.deleteMany).toHaveBeenCalledWith({
+        where: { id: 'token-1' },
+      });
     });
   });
 
@@ -237,15 +275,20 @@ describe('AuthService', () => {
   });
 
   describe('refresh', () => {
-    it('rotaciona o refresh token quando ele bate com o armazenado no Redis', async () => {
+    const activeSession = {
+      ...storedUser,
+      refreshTokenId: 'abc',
+      refreshTokenExpiresAt: new Date(Date.now() + 60_000),
+    };
+
+    it('rotaciona o refresh token quando ele bate com o armazenado no banco', async () => {
       jwtService.verify.mockReturnValue({ id: storedUser.id, tokenId: 'abc' });
-      redis.get.mockResolvedValue('abc');
-      prisma.user.findUnique.mockResolvedValue(storedUser);
+      prisma.user.findUnique.mockResolvedValue(activeSession);
 
       const result = await service.refresh('valid-refresh-token');
 
       expect(result.access_token).toBe('signed-token');
-      expect(redis.set).toHaveBeenCalled();
+      expect(prisma.user.update).toHaveBeenCalled();
     });
 
     it('rejeita quando o token falha na verificação', async () => {
@@ -260,7 +303,10 @@ describe('AuthService', () => {
 
     it('rejeita quando o token id armazenado não bate com o payload', async () => {
       jwtService.verify.mockReturnValue({ id: storedUser.id, tokenId: 'abc' });
-      redis.get.mockResolvedValue('different-token-id');
+      prisma.user.findUnique.mockResolvedValue({
+        ...activeSession,
+        refreshTokenId: 'different-token-id',
+      });
 
       await expect(
         service.refresh('valid-refresh-token'),
@@ -269,7 +315,23 @@ describe('AuthService', () => {
 
     it('rejeita quando o token id armazenado não existe (ex: após logout)', async () => {
       jwtService.verify.mockReturnValue({ id: storedUser.id, tokenId: 'abc' });
-      redis.get.mockResolvedValue(null);
+      prisma.user.findUnique.mockResolvedValue({
+        ...activeSession,
+        refreshTokenId: null,
+        refreshTokenExpiresAt: null,
+      });
+
+      await expect(
+        service.refresh('valid-refresh-token'),
+      ).rejects.toMatchObject({ status: 401 });
+    });
+
+    it('rejeita quando o refresh token armazenado expirou', async () => {
+      jwtService.verify.mockReturnValue({ id: storedUser.id, tokenId: 'abc' });
+      prisma.user.findUnique.mockResolvedValue({
+        ...activeSession,
+        refreshTokenExpiresAt: new Date(Date.now() - 1000),
+      });
 
       await expect(
         service.refresh('valid-refresh-token'),
@@ -278,9 +340,8 @@ describe('AuthService', () => {
 
     it('rejeita quando o usuário está inativo', async () => {
       jwtService.verify.mockReturnValue({ id: storedUser.id, tokenId: 'abc' });
-      redis.get.mockResolvedValue('abc');
       prisma.user.findUnique.mockResolvedValue({
-        ...storedUser,
+        ...activeSession,
         isActive: false,
       });
 
@@ -291,10 +352,13 @@ describe('AuthService', () => {
   });
 
   describe('logout', () => {
-    it('remove o refresh token armazenado do usuário', async () => {
+    it('zera o refresh token armazenado do usuário', async () => {
       await service.logout(storedUser.id);
 
-      expect(redis.del).toHaveBeenCalledWith(`refresh-token:${storedUser.id}`);
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: storedUser.id },
+        data: { refreshTokenId: null, refreshTokenExpiresAt: null },
+      });
     });
   });
 

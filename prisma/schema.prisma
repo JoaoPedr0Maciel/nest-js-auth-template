@@ -38,8 +38,17 @@ model User {
   // Cifrado (AES-256-GCM), nunca em texto puro — ver two-factor-crypto.util.ts
   twoFactorSecret  String?
 
-  recoveryCodes   TwoFactorRecoveryCode[]
-  twoFactorAudits TwoFactorAuditLog[]
+  // Segredo pendente do setup de 2FA (cifrado), antes da confirmação
+  twoFactorPendingSecret          String?
+  twoFactorPendingSecretExpiresAt DateTime?
+
+  // Sessão ativa de refresh token — um token válido por vez, com rotação
+  refreshTokenId        String?
+  refreshTokenExpiresAt DateTime?
+
+  recoveryCodes            TwoFactorRecoveryCode[]
+  twoFactorAudits          TwoFactorAuditLog[]
+  twoFactorLoginChallenges TwoFactorLoginChallenge[]
 
   @@map("users")
 }
@@ -66,4 +75,18 @@ model TwoFactorAuditLog {
 
   @@index([userId, createdAt])
   @@map("two_factor_audit_logs")
+}
+
+// Estado entre POST /auth/login (com 2FA ativo) e POST /auth/2fa/verify.
+// O id é o próprio challengeToken (randomUUID) — não um id opaco separado.
+model TwoFactorLoginChallenge {
+  id        String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("two_factor_login_challenges")
 }

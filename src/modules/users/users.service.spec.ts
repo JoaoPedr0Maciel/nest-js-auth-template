@@ -3,7 +3,6 @@ import { Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { UsersService } from './users.service';
 import { PrismaService } from '../../infra/prisma/prisma.service';
-import { RedisService } from '../../infra/redis/redis.service';
 
 jest.mock('bcrypt');
 
@@ -19,7 +18,6 @@ describe('UsersService', () => {
       count: jest.Mock;
     };
   };
-  let redis: { getObject: jest.Mock; set: jest.Mock; del: jest.Mock };
 
   const dbUser = {
     id: 'user-1',
@@ -43,12 +41,8 @@ describe('UsersService', () => {
         count: jest.fn(),
       },
     };
-    redis = { getObject: jest.fn(), set: jest.fn(), del: jest.fn() };
 
-    service = new UsersService(
-      prisma as unknown as PrismaService,
-      redis as unknown as RedisService,
-    );
+    service = new UsersService(prisma as unknown as PrismaService);
 
     (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-password');
   });
@@ -89,27 +83,15 @@ describe('UsersService', () => {
   });
 
   describe('findOne', () => {
-    it('retorna o usuário do cache sem consultar o banco', async () => {
-      redis.getObject.mockResolvedValue(dbUser);
-
-      const result = await service.findOne(dbUser.id);
-
-      expect(result).toEqual(dbUser);
-      expect(prisma.user.findUnique).not.toHaveBeenCalled();
-    });
-
-    it('busca no banco quando não há cache e popula o cache', async () => {
-      redis.getObject.mockResolvedValue(null);
+    it('busca o usuário no banco', async () => {
       prisma.user.findUnique.mockResolvedValue(dbUser);
 
       const result = await service.findOne(dbUser.id);
 
       expect(result).toEqual(dbUser);
-      expect(redis.set).toHaveBeenCalledWith(`user:${dbUser.id}`, dbUser, 300);
     });
 
     it('lança NotFoundException quando o usuário não existe', async () => {
-      redis.getObject.mockResolvedValue(null);
       prisma.user.findUnique.mockResolvedValue(null);
 
       await expect(service.findOne('missing')).rejects.toBeInstanceOf(
@@ -168,22 +150,21 @@ describe('UsersService', () => {
   });
 
   describe('update', () => {
-    it('atualiza os campos e invalida o cache', async () => {
-      redis.getObject.mockResolvedValue(dbUser);
+    it('atualiza os campos', async () => {
+      prisma.user.findUnique.mockResolvedValue(dbUser);
       prisma.user.update.mockResolvedValue({ ...dbUser, name: 'Novo Nome' });
 
       const result = await service.update(dbUser.id, { name: 'Novo Nome' });
 
       expect(result.name).toBe('Novo Nome');
-      expect(redis.del).toHaveBeenCalledWith(`user:${dbUser.id}`);
     });
 
     it('lança conflito ao trocar para um telefone já em uso', async () => {
-      redis.getObject.mockResolvedValue(dbUser);
-      prisma.user.findUnique.mockResolvedValue({
-        ...dbUser,
-        id: 'other-user',
-      });
+      prisma.user.findUnique.mockImplementation(({ where }) =>
+        Promise.resolve(
+          where && 'id' in where ? dbUser : { ...dbUser, id: 'other-user' },
+        ),
+      );
 
       await expect(
         service.update(dbUser.id, { phone: '+5511977777777' }),
@@ -191,11 +172,11 @@ describe('UsersService', () => {
     });
 
     it('lança conflito ao trocar para um email já em uso', async () => {
-      redis.getObject.mockResolvedValue(dbUser);
-      prisma.user.findUnique.mockResolvedValue({
-        ...dbUser,
-        id: 'other-user',
-      });
+      prisma.user.findUnique.mockImplementation(({ where }) =>
+        Promise.resolve(
+          where && 'id' in where ? dbUser : { ...dbUser, id: 'other-user' },
+        ),
+      );
 
       await expect(
         service.update(dbUser.id, { email: 'taken@example.com' }),
@@ -203,7 +184,6 @@ describe('UsersService', () => {
     });
 
     it('propaga NotFoundException quando o usuário a atualizar não existe', async () => {
-      redis.getObject.mockResolvedValue(null);
       prisma.user.findUnique.mockResolvedValue(null);
 
       await expect(
@@ -229,8 +209,8 @@ describe('UsersService', () => {
   });
 
   describe('remove', () => {
-    it('remove o usuário e invalida o cache', async () => {
-      redis.getObject.mockResolvedValue(dbUser);
+    it('remove o usuário', async () => {
+      prisma.user.findUnique.mockResolvedValue(dbUser);
       prisma.user.delete.mockResolvedValue(dbUser);
 
       await service.remove(dbUser.id);
@@ -238,11 +218,9 @@ describe('UsersService', () => {
       expect(prisma.user.delete).toHaveBeenCalledWith(
         expect.objectContaining({ where: { id: dbUser.id } }),
       );
-      expect(redis.del).toHaveBeenCalledWith(`user:${dbUser.id}`);
     });
 
     it('lança NotFoundException em vez de remover quando o usuário não existe', async () => {
-      redis.getObject.mockResolvedValue(null);
       prisma.user.findUnique.mockResolvedValue(null);
 
       await expect(service.remove('missing')).rejects.toBeInstanceOf(
@@ -253,8 +231,8 @@ describe('UsersService', () => {
   });
 
   describe('deactivate', () => {
-    it('define isActive como false e invalida o cache', async () => {
-      redis.getObject.mockResolvedValue(dbUser);
+    it('define isActive como false', async () => {
+      prisma.user.findUnique.mockResolvedValue(dbUser);
       prisma.user.update.mockResolvedValue({ ...dbUser, isActive: false });
 
       const result = await service.deactivate(dbUser.id);
@@ -263,7 +241,6 @@ describe('UsersService', () => {
       expect(prisma.user.update).toHaveBeenCalledWith(
         expect.objectContaining({ data: { isActive: false } }),
       );
-      expect(redis.del).toHaveBeenCalledWith(`user:${dbUser.id}`);
     });
   });
 });

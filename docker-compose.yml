@@ -31,17 +31,6 @@ services:
     networks:
       - nest-template-network
 
-  redis:
-    image: redis:latest
-    container_name: nest-template-redis
-    restart: always
-    ports:
-      - '6379:6379'
-    volumes:
-      - redis_data:/data
-    networks:
-      - nest-template-network
-
   app:
     build:
       context: .
@@ -53,19 +42,16 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql://postgres:postgres123@postgres:5432/nestjs_auth?schema=public
-      REDIS_URL: redis://redis:6379
     ports:
       - '3000:3000'
     depends_on:
       - postgres
-      - redis
     networks:
       - nest-template-network
 
 volumes:
   postgres_data:
   pgadmin_data:
-  redis_data:
 
 networks:
   nest-template-network:

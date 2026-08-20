@@ -4,7 +4,7 @@ import { TwoFactorAuditAction } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import * as QRCode from 'qrcode';
 import { PrismaService } from '../../infra/prisma/prisma.service';
-import { RedisService } from '../../infra/redis/redis.service';
+import { secondsFromNow } from '../../shared/utils/duration.util';
 import { AuthService } from '../auth/auth.service';
 import { Errors as userErrors } from '../users/errors';
 import { Errors as twoFactorErrors } from './errors';
@@ -30,7 +30,6 @@ const RECOVERY_CODE_BCRYPT_ROUNDS = 10;
 export class TwoFactorService {
   constructor(
     private prisma: PrismaService,
-    private redis: RedisService,
     private configService: ConfigService,
     private authService: AuthService,
   ) {}
@@ -51,11 +50,18 @@ export class TwoFactorService {
     });
     const qrCodeDataUrl = await QRCode.toDataURL(otpauthUrl);
 
-    await this.redis.set(
-      this.pendingSetupKey(userId),
-      secret,
-      PENDING_SETUP_TTL_SECONDS,
-    );
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        twoFactorPendingSecret: encryptTwoFactorSecret(
+          secret,
+          this.encryptionKey(),
+        ),
+        twoFactorPendingSecretExpiresAt: secondsFromNow(
+          PENDING_SETUP_TTL_SECONDS,
+        ),
+      },
+    });
 
     return { manualEntryKey: secret, otpauthUrl, qrCodeDataUrl };
   }
@@ -64,8 +70,18 @@ export class TwoFactorService {
     const user = await this.getUserOrThrow(userId);
     if (user.twoFactorEnabled) throw twoFactorErrors.alreadyEnabled();
 
-    const pendingSecret = await this.redis.get(this.pendingSetupKey(userId));
-    if (!pendingSecret) throw twoFactorErrors.setupNotFound();
+    if (
+      !user.twoFactorPendingSecret ||
+      !user.twoFactorPendingSecretExpiresAt ||
+      user.twoFactorPendingSecretExpiresAt < new Date()
+    ) {
+      throw twoFactorErrors.setupNotFound();
+    }
+
+    const pendingSecret = decryptTwoFactorSecret(
+      user.twoFactorPendingSecret,
+      this.encryptionKey(),
+    );
 
     const isValid = verifyTotpCode(dto.code, pendingSecret);
     if (!isValid) throw twoFactorErrors.invalidCode();
@@ -83,7 +99,12 @@ export class TwoFactorService {
     await this.prisma.$transaction([
       this.prisma.user.update({
         where: { id: userId },
-        data: { twoFactorEnabled: true, twoFactorSecret: encryptedSecret },
+        data: {
+          twoFactorEnabled: true,
+          twoFactorSecret: encryptedSecret,
+          twoFactorPendingSecret: null,
+          twoFactorPendingSecretExpiresAt: null,
+        },
       }),
       this.prisma.twoFactorRecoveryCode.deleteMany({ where: { userId } }),
       this.prisma.twoFactorRecoveryCode.createMany({
@@ -93,8 +114,6 @@ export class TwoFactorService {
         data: { userId, action: TwoFactorAuditAction.ENABLED },
       }),
     ]);
-
-    await this.redis.del(this.pendingSetupKey(userId));
 
     return { recoveryCodes };
   }
@@ -274,10 +293,6 @@ export class TwoFactorService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw userErrors.notFound();
     return user;
-  }
-
-  private pendingSetupKey(userId: string): string {
-    return `2fa-setup:${userId}`;
   }
 
   private encryptionKey(): string {

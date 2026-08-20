@@ -8,7 +8,6 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../../infra/prisma/prisma.service';
-import { RedisService } from '../../infra/redis/redis.service';
 import { Errors as userErrors } from '../users/errors';
 import { Errors as authErrors } from './errors';
 import type {
@@ -16,7 +15,10 @@ import type {
   RefreshTokenPayload,
 } from 'src/shared/interfaces/jwt-payload.interface';
 import { normalizePhone } from '../../shared/utils/phone.util';
-import { durationToSeconds } from '../../shared/utils/duration.util';
+import {
+  durationToSeconds,
+  secondsFromNow,
+} from '../../shared/utils/duration.util';
 import type { TokenSubject } from './interfaces/user.interface';
 import type { TwoFactorChallengeResponseDto } from './dto/two-factor-challenge-response.dto';
 
@@ -28,7 +30,6 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private configService: ConfigService,
-    private redis: RedisService,
   ) {}
 
   async login(loginDto: LoginDto) {
@@ -74,46 +75,48 @@ export class AuthService {
   ): Promise<TwoFactorChallengeResponseDto> {
     const challengeToken = randomUUID();
 
-    await this.redis.set(
-      this.twoFactorChallengeKey(challengeToken),
-      userId,
-      this.twoFactorChallengeTtlSeconds(),
-    );
+    await this.prisma.twoFactorLoginChallenge.create({
+      data: {
+        id: challengeToken,
+        userId,
+        expiresAt: secondsFromNow(this.twoFactorChallengeTtlSeconds()),
+      },
+    });
 
     return { twoFactorRequired: true, challengeToken };
   }
 
   async resolveTwoFactorChallenge(challengeToken: string): Promise<string> {
-    const userId = await this.redis.get(
-      this.twoFactorChallengeKey(challengeToken),
-    );
+    const challenge = await this.prisma.twoFactorLoginChallenge.findUnique({
+      where: { id: challengeToken },
+    });
 
-    if (!userId) throw authErrors.twoFactorChallengeExpired();
+    if (!challenge || challenge.expiresAt < new Date()) {
+      if (challenge) await this.consumeTwoFactorChallenge(challengeToken);
+      throw authErrors.twoFactorChallengeExpired();
+    }
 
-    return userId;
+    return challenge.userId;
   }
 
   async registerTwoFactorChallengeFailure(
     challengeToken: string,
   ): Promise<void> {
-    const attemptsKey = this.twoFactorChallengeAttemptsKey(challengeToken);
-    const attempts = await this.redis.incr(attemptsKey);
+    const challenge = await this.prisma.twoFactorLoginChallenge.update({
+      where: { id: challengeToken },
+      data: { attempts: { increment: 1 } },
+    });
 
-    if (attempts === 1) {
-      await this.redis.expire(attemptsKey, this.twoFactorChallengeTtlSeconds());
-    }
-
-    if (attempts >= TWO_FACTOR_CHALLENGE_MAX_ATTEMPTS) {
+    if (challenge.attempts >= TWO_FACTOR_CHALLENGE_MAX_ATTEMPTS) {
       await this.consumeTwoFactorChallenge(challengeToken);
       throw authErrors.twoFactorTooManyAttempts();
     }
   }
 
   async consumeTwoFactorChallenge(challengeToken: string): Promise<void> {
-    await Promise.all([
-      this.redis.del(this.twoFactorChallengeKey(challengeToken)),
-      this.redis.del(this.twoFactorChallengeAttemptsKey(challengeToken)),
-    ]);
+    await this.prisma.twoFactorLoginChallenge.deleteMany({
+      where: { id: challengeToken },
+    });
   }
 
   async register(registerDto: RegisterDto) {
@@ -172,19 +175,17 @@ export class AuthService {
       throw authErrors.invalidRefreshToken();
     }
 
-    const storedTokenId = await this.redis.get(
-      this.refreshTokenKey(payload.id),
-    );
-
-    if (!storedTokenId || storedTokenId !== payload.tokenId) {
-      throw authErrors.invalidRefreshToken();
-    }
-
     const user = await this.prisma.user.findUnique({
       where: { id: payload.id },
     });
 
-    if (!user || !user.isActive) {
+    if (
+      !user ||
+      !user.isActive ||
+      user.refreshTokenId !== payload.tokenId ||
+      !user.refreshTokenExpiresAt ||
+      user.refreshTokenExpiresAt < new Date()
+    ) {
       throw authErrors.invalidRefreshToken();
     }
 
@@ -192,7 +193,10 @@ export class AuthService {
   }
 
   async logout(userId: string): Promise<void> {
-    await this.redis.del(this.refreshTokenKey(userId));
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { refreshTokenId: null, refreshTokenExpiresAt: null },
+    });
   }
 
   async getProfile(userId: string) {
@@ -235,25 +239,17 @@ export class AuthService {
       expiresIn: refreshExpiresIn as `${number}${'s' | 'm' | 'h' | 'd'}`,
     });
 
-    await this.redis.set(
-      this.refreshTokenKey(user.id),
-      tokenId,
-      durationToSeconds(refreshExpiresIn),
-    );
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        refreshTokenId: tokenId,
+        refreshTokenExpiresAt: secondsFromNow(
+          durationToSeconds(refreshExpiresIn),
+        ),
+      },
+    });
 
     return { access_token, refresh_token };
-  }
-
-  private refreshTokenKey(userId: string): string {
-    return `refresh-token:${userId}`;
-  }
-
-  private twoFactorChallengeKey(challengeToken: string): string {
-    return `2fa-challenge:${challengeToken}`;
-  }
-
-  private twoFactorChallengeAttemptsKey(challengeToken: string): string {
-    return `2fa-challenge-attempts:${challengeToken}`;
   }
 
   private twoFactorChallengeTtlSeconds(): number {

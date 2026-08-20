@@ -18,3 +18,8 @@ export function durationToSeconds(value: string): number {
   const [, amount, unit] = match;
   return Number(amount) * UNIT_SECONDS[unit];
 }
+
+/** Data `seconds` segundos no futuro, a partir de agora. */
+export function secondsFromNow(seconds: number): Date {
+  return new Date(Date.now() + seconds * 1000);
+}

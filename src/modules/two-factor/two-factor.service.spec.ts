@@ -4,7 +4,6 @@ import * as bcrypt from 'bcrypt';
 import * as QRCode from 'qrcode';
 import { TwoFactorService } from './two-factor.service';
 import { PrismaService } from '../../infra/prisma/prisma.service';
-import { RedisService } from '../../infra/redis/redis.service';
 import { AuthService } from '../auth/auth.service';
 import {
   buildTotpAuthUrl,
@@ -48,7 +47,6 @@ describe('TwoFactorService', () => {
     twoFactorAuditLog: { create: jest.Mock };
     $transaction: jest.Mock;
   };
-  let redis: { get: jest.Mock; set: jest.Mock; del: jest.Mock };
   let configService: { get: jest.Mock };
   let authService: {
     resolveTwoFactorChallenge: jest.Mock;
@@ -70,6 +68,14 @@ describe('TwoFactorService', () => {
     isActive: true,
     twoFactorEnabled: false,
     twoFactorSecret: null as string | null,
+    twoFactorPendingSecret: null as string | null,
+    twoFactorPendingSecretExpiresAt: null as Date | null,
+  };
+
+  const pendingUser = {
+    ...baseUser,
+    twoFactorPendingSecret: 'encrypted-pending-secret',
+    twoFactorPendingSecretExpiresAt: new Date(Date.now() + 60_000),
   };
 
   beforeEach(() => {
@@ -84,7 +90,6 @@ describe('TwoFactorService', () => {
       twoFactorAuditLog: { create: jest.fn() },
       $transaction: jest.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
     };
-    redis = { get: jest.fn(), set: jest.fn(), del: jest.fn() };
     configService = {
       get: jest.fn((key: string, fallback?: unknown) => {
         const values: Record<string, string> = {
@@ -104,7 +109,6 @@ describe('TwoFactorService', () => {
 
     service = new TwoFactorService(
       prisma as unknown as PrismaService,
-      redis as unknown as RedisService,
       configService as unknown as ConfigService,
       authService as unknown as AuthService,
     );
@@ -126,7 +130,7 @@ describe('TwoFactorService', () => {
   });
 
   describe('setup', () => {
-    it('gera segredo pendente, QR code e guarda no Redis', async () => {
+    it('gera segredo pendente, QR code e guarda cifrado no usuário', async () => {
       prisma.user.findUnique.mockResolvedValue(baseUser);
 
       const result = await service.setup(baseUser.id);
@@ -136,11 +140,17 @@ describe('TwoFactorService', () => {
         otpauthUrl: 'otpauth://totp/test',
         qrCodeDataUrl: 'data:image/png;base64,x',
       });
-      expect(redis.set).toHaveBeenCalledWith(
-        `2fa-setup:${baseUser.id}`,
+      expect(encryptTwoFactorSecret).toHaveBeenCalledWith(
         'PENDING_SECRET',
-        600,
+        encryptionKey,
       );
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: baseUser.id },
+        data: {
+          twoFactorPendingSecret: 'encrypted-secret',
+          twoFactorPendingSecretExpiresAt: expect.any(Date) as Date,
+        },
+      });
     });
 
     it('rejeita quando o 2FA já está ativado', async () => {
@@ -156,26 +166,43 @@ describe('TwoFactorService', () => {
   });
 
   describe('confirmSetup', () => {
-    it('ativa o 2FA e retorna os códigos de recuperação com um código válido', async () => {
-      prisma.user.findUnique.mockResolvedValue(baseUser);
-      redis.get.mockResolvedValue('PENDING_SECRET');
+    it('ativa o 2FA, limpa o pendente e retorna os códigos de recuperação com um código válido', async () => {
+      prisma.user.findUnique.mockResolvedValue(pendingUser);
 
       const result = await service.confirmSetup(baseUser.id, {
         code: '123456',
       });
 
+      expect(decryptTwoFactorSecret).toHaveBeenCalledWith(
+        'encrypted-pending-secret',
+        encryptionKey,
+      );
       expect(result).toEqual({ recoveryCodes: ['AAAA-AAAA', 'BBBB-BBBB'] });
       expect(prisma.user.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: { twoFactorEnabled: true, twoFactorSecret: 'encrypted-secret' },
+          data: {
+            twoFactorEnabled: true,
+            twoFactorSecret: 'encrypted-secret',
+            twoFactorPendingSecret: null,
+            twoFactorPendingSecretExpiresAt: null,
+          },
         }),
       );
-      expect(redis.del).toHaveBeenCalledWith(`2fa-setup:${baseUser.id}`);
     });
 
-    it('rejeita quando não há configuração pendente (expirada ou inexistente)', async () => {
+    it('rejeita quando não há configuração pendente', async () => {
       prisma.user.findUnique.mockResolvedValue(baseUser);
-      redis.get.mockResolvedValue(null);
+
+      await expect(
+        service.confirmSetup(baseUser.id, { code: '123456' }),
+      ).rejects.toMatchObject({ status: 400 });
+    });
+
+    it('rejeita quando a configuração pendente expirou', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        ...pendingUser,
+        twoFactorPendingSecretExpiresAt: new Date(Date.now() - 1000),
+      });
 
       await expect(
         service.confirmSetup(baseUser.id, { code: '123456' }),
@@ -183,8 +210,7 @@ describe('TwoFactorService', () => {
     });
 
     it('rejeita um código inválido e não ativa o 2FA', async () => {
-      prisma.user.findUnique.mockResolvedValue(baseUser);
-      redis.get.mockResolvedValue('PENDING_SECRET');
+      prisma.user.findUnique.mockResolvedValue(pendingUser);
       (verifyTotpCode as jest.Mock).mockReturnValue(false);
 
       await expect(

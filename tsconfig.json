@@ -10,6 +10,9 @@
     "sourceMap": true,
     "outDir": "./dist",
     "baseUrl": "./",
+    "paths": {
+      "@casl/ability": ["node_modules/@casl/ability/dist/types/index.d.ts"]
+    },
     "incremental": true,
     "skipLibCheck": true,
     "strictNullChecks": false,
