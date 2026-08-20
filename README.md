@@ -7,16 +7,15 @@ Template NestJS com autenticação JWT, autorização baseada em roles e Prisma 
 - Autenticação JWT com access token + refresh token (rotação a cada uso, revogável via `/auth/logout`)
 - Autenticação em dois fatores (2FA/TOTP, compatível com Google Authenticator) — ver seção [Autenticação em dois fatores (2FA)](#autenticação-em-dois-fatores-2fa)
 - Hash de senhas com bcrypt
-- Autorização baseada em roles (USER, ADMIN)
-- Decorators `@Roles`, `@CurrentUser`, `@Public`
+- Autorização baseada em permissões com CASL (roles `USER`/`ADMIN` mapeadas pra abilities via `@CheckPolicies`)
+- Decorators `@CheckPolicies`, `@CurrentUser`, `@Public`
 - Prisma ORM 7 (com driver adapters) + PostgreSQL
-- Redis para cache, com leitura validada em runtime via Zod (`RedisService.getObject`) — um cache desatualizado ou gravado com outro shape retorna `null` em vez de vazar dado inconsistente pro resto da aplicação
-- Docker Compose com PostgreSQL, PgAdmin4, Redis e a própria aplicação
+- Docker Compose com PostgreSQL, PgAdmin4 e a própria aplicação
 - Swagger/OpenAPI em `/api/docs`
 - Validação com class-validator (telefone validado via `@IsPhoneNumber()`, formato internacional E.164)
 - Helmet + CORS configurável por env
 - Rate limiting (`@nestjs/throttler`), mais restritivo em `/auth/login` e `/auth/register`
-- Healthcheck em `/health` (Prisma + Redis) via `@nestjs/terminus`
+- Healthcheck em `/health` (Prisma) via `@nestjs/terminus`
 - Filtro de exceção global com formato de erro padronizado
 - Validação de variáveis de ambiente na inicialização (Zod) — boot falha cedo, com mensagem clara, se faltar algo
 - Paginação (`shared/pagination`) em endpoints de listagem, ex. `GET /users?page=1&limit=15`
@@ -26,7 +25,7 @@ Template NestJS com autenticação JWT, autorização baseada em roles e Prisma 
 
 1. Instale as dependências: `npm install` (roda `prisma generate` automaticamente via `postinstall`)
 2. Copie `env.example` para `.env` e preencha as variáveis
-3. Suba os serviços de banco/cache: `docker-compose up -d postgres redis pgadmin`
+3. Suba o banco: `docker-compose up -d postgres pgadmin`
 4. Configure o banco:
    - `npm run prisma:migrate`
    - `npm run prisma:seed` (não roda mais automaticamente após `migrate dev` no Prisma 7 — sempre manual)
@@ -68,8 +67,7 @@ src/
 │   └── env.validation.ts
 ├── infra/
 │   ├── health/
-│   ├── prisma/
-│   └── redis/
+│   └── prisma/
 ├── modules/
 │   └── <nome>/
 │       ├── decorators/
@@ -87,28 +85,28 @@ src/
 
 ### Onde colocar cada coisa
 
-| Pasta                       | O que vai aqui                                                                                                                    |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `modules/`                  | Funcionalidades de negócio. Novo domínio = nova pasta aqui.                                                                       |
-| `shared/`                   | Tudo compartilhado por mais de um módulo: decorators, filtros, paginação, interfaces, utils.                                      |
-| `infra/`                    | Conexões com banco, cache e serviços externos (cada recurso em sua própria pasta: `infra/prisma`, `infra/redis`, `infra/health`). |
-| `config/`                   | Validação e schemas de configuração (env vars).                                                                                   |
-| Raiz de `src/`              | Apenas `app.module.ts`, `app.controller.ts`, `app.service.ts` e `main.ts`.                                                        |
-| `prisma/` (raiz do projeto) | Schema e migrations do banco.                                                                                                     |
+| Pasta                       | O que vai aqui                                                                                              |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `modules/`                  | Funcionalidades de negócio. Novo domínio = nova pasta aqui.                                                 |
+| `shared/`                   | Tudo compartilhado por mais de um módulo: decorators, filtros, paginação, interfaces, utils.                |
+| `infra/`                    | Conexões com banco e serviços externos (cada recurso em sua própria pasta: `infra/prisma`, `infra/health`). |
+| `config/`                   | Validação e schemas de configuração (env vars).                                                             |
+| Raiz de `src/`              | Apenas `app.module.ts`, `app.controller.ts`, `app.service.ts` e `main.ts`.                                  |
+| `prisma/` (raiz do projeto) | Schema e migrations do banco.                                                                               |
 
 ### Dentro de um módulo (`modules/<nome>/`)
 
-| O que adicionar                                                                            | Onde                                 |
-| ------------------------------------------------------------------------------------------ | ------------------------------------ |
-| Controller, service, module                                                                | Raiz do módulo                       |
-| DTOs                                                                                       | `dto/`                               |
-| Guards, pipes, interceptors                                                                | `guards/`, `pipes/`, `interceptors/` |
-| Decorators do módulo                                                                       | `decorators/`                        |
-| Interfaces e types do módulo                                                               | `interfaces/`                        |
-| Catálogo de erros do módulo                                                                | `errors/index.ts`                    |
-| Filtros de listagem do módulo (DTO de query + `where` do Prisma)                           | `filters/index.ts`                   |
-| Schemas Zod (validação de dado que não passou pelo `ValidationPipe`, ex. leitura de cache) | `schemas/`                           |
-| Decorators compostos de Swagger por rota (`@ApiLogin()`, `@ApiListUsers()`, ...)           | `docs/<nome>.swagger.ts`             |
+| O que adicionar                                                                  | Onde                                 |
+| -------------------------------------------------------------------------------- | ------------------------------------ |
+| Controller, service, module                                                      | Raiz do módulo                       |
+| DTOs                                                                             | `dto/`                               |
+| Guards, pipes, interceptors                                                      | `guards/`, `pipes/`, `interceptors/` |
+| Decorators do módulo                                                             | `decorators/`                        |
+| Interfaces e types do módulo                                                     | `interfaces/`                        |
+| Catálogo de erros do módulo                                                      | `errors/index.ts`                    |
+| Filtros de listagem do módulo (DTO de query + `where` do Prisma)                 | `filters/index.ts`                   |
+| Schemas Zod (validação de dado que não passou pelo `ValidationPipe`)             | `schemas/`                           |
+| Decorators compostos de Swagger por rota (`@ApiLogin()`, `@ApiListUsers()`, ...) | `docs/<nome>.swagger.ts`             |
 
 ### Filtros de listagem
 
@@ -125,18 +123,22 @@ src/
 ## Segurança
 
 - **JwtAuthGuard** – aplicado globalmente; valida o token e injeta o usuário na request. Rotas marcadas com `@Public()` são ignoradas.
-- **RolesGuard** – restringe acesso por role junto ao decorator `@Roles()`.
+- **PoliciesGuard** – restringe acesso via CASL (`modules/auth/casl/`), junto ao decorator `@CheckPolicies((ability) => ability.can(action, subject))`.
 - **ThrottlerGuard** – aplicado globalmente (30 req/min por IP); `/auth/login` e `/auth/register` têm limite próprio (5 req/min).
 - **Helmet** – cabeçalhos de segurança HTTP padrão.
 - **CORS** – configurável via `CORS_ORIGIN` (lista separada por vírgula, ou `*`).
-- **Refresh token** – `POST /auth/login` e `POST /auth/register` retornam `access_token` (curto, `JWT_EXPIRES_IN`) e `refresh_token` (longo, `JWT_REFRESH_SECRET`/`JWT_REFRESH_EXPIRES_IN`). `POST /auth/refresh` troca o refresh token por um par novo (rotação: o antigo é invalidado). O `tokenId` válido de cada usuário fica no Redis (`refresh-token:<userId>`); `POST /auth/logout` remove essa chave e revoga o refresh token atual.
+- **Refresh token** – `POST /auth/login` e `POST /auth/register` retornam `access_token` (curto, `JWT_EXPIRES_IN`) e `refresh_token` (longo, `JWT_REFRESH_SECRET`/`JWT_REFRESH_EXPIRES_IN`). `POST /auth/refresh` troca o refresh token por um par novo (rotação: o antigo é invalidado). O `tokenId` válido de cada usuário fica em `User.refreshTokenId`/`refreshTokenExpiresAt`; `POST /auth/logout` zera essas colunas e revoga o refresh token atual.
 
-### Roles
+### Autorização (CASL)
 
-| Role    | Permissões                                           |
-| ------- | ---------------------------------------------------- |
-| `USER`  | Acesso básico                                        |
-| `ADMIN` | Gerenciamento de usuários e recursos administrativos |
+Cada role vira uma `ability` no login, montada por `CaslAbilityFactory` a partir do mapa em `modules/auth/casl/permissions.ts`. Rotas checam a ability, não a role diretamente — o que abre espaço pra regras condicionais (ex. "só o dono do recurso") sem trocar o mecanismo:
+
+| Role    | Abilities                    |
+| ------- | ---------------------------- |
+| `USER`  | Nenhuma sobre `User`         |
+| `ADMIN` | `manage` (tudo) sobre `User` |
+
+Pra adicionar uma permissão nova: declare a action/subject em `actions.ts`/`subjects.ts` se ainda não existir, ajuste `permissions.ts` e use `@CheckPolicies((ability) => ability.can(action, subject))` na rota.
 
 ## Autenticação em dois fatores (2FA)
 
@@ -151,9 +153,9 @@ TOTP (RFC 6238), compatível com Google Authenticator e apps similares. Endpoint
 | `POST /auth/2fa/verify`                    | `challengeToken`     | Segunda etapa do login: completa a autenticação com um código do autenticador.  |
 | `POST /auth/2fa/verify/recovery`           | `challengeToken`     | Segunda etapa do login usando um código de recuperação (não desativa o 2FA).    |
 
-**Fluxo de login com 2FA ativo**: `POST /auth/login` valida a senha e, se `twoFactorEnabled`, não emite tokens — responde `{ twoFactorRequired: true, challengeToken }`. O `challengeToken` (armazenado no Redis, `2fa-challenge:<token>`, TTL `TWO_FACTOR_CHALLENGE_TTL_SECONDS`) é trocado por tokens em `POST /auth/2fa/verify`. Tentativas inválidas contam num contador por `challengeToken` (`2fa-challenge-attempts:<token>`); ao atingir o limite, o desafio inteiro é invalidado e é preciso logar de novo — mesma proteção contra força bruta do login por senha.
+**Fluxo de login com 2FA ativo**: `POST /auth/login` valida a senha e, se `twoFactorEnabled`, não emite tokens — responde `{ twoFactorRequired: true, challengeToken }`. O `challengeToken` (linha em `TwoFactorLoginChallenge`, com `expiresAt` = `TWO_FACTOR_CHALLENGE_TTL_SECONDS`) é trocado por tokens em `POST /auth/2fa/verify`. Tentativas inválidas incrementam `attempts` na mesma linha; ao atingir o limite, o desafio inteiro é apagado e é preciso logar de novo — mesma proteção contra força bruta do login por senha.
 
-**Segredo TOTP**: cifrado (AES-256-GCM, chave derivada de `TWO_FACTOR_ENCRYPTION_KEY`) em `User.twoFactorSecret` — precisa ser recuperável a cada login, então não pode ser hash como senha. Antes da confirmação, o segredo pendente fica só no Redis (`2fa-setup:<userId>`, TTL de 10 min) — nunca é persistido no Postgres com o 2FA desabilitado.
+**Segredo TOTP**: cifrado (AES-256-GCM, chave derivada de `TWO_FACTOR_ENCRYPTION_KEY`) em `User.twoFactorSecret` — precisa ser recuperável a cada login, então não pode ser hash como senha. Antes da confirmação, o segredo pendente fica cifrado em `User.twoFactorPendingSecret`/`twoFactorPendingSecretExpiresAt` (TTL de 10 min) — só vira `twoFactorSecret` definitivo com o 2FA confirmado e ativado.
 
 **Códigos de recuperação**: 10 códigos (`XXXX-XXXX`) gerados na confirmação, guardados com hash bcrypt (`TwoFactorRecoveryCode`, uso único via `usedAt`). Regenerar apaga o lote anterior por completo.
 

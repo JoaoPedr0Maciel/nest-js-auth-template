@@ -13,10 +13,9 @@ import {
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
+import { PoliciesGuard } from '../auth/casl/policies.guard';
+import { CheckPolicies } from '../auth/casl/check-policies.decorator';
 import { CurrentUser } from '../../shared/decorators/current-user.decorator';
-import { Role } from '@prisma/client';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
@@ -36,48 +35,40 @@ import {
 
 @ApiTags('users')
 @Controller('users')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, PoliciesGuard)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get()
-  @Roles(Role.ADMIN)
+  @CheckPolicies((ability) => ability.can('read', 'User'))
   @ApiListUsers()
   findAll(@Query() filter: UserQueryDto) {
     return this.usersService.findAll(filter);
   }
 
   @Get(':id')
-  @Roles(Role.ADMIN)
+  @CheckPolicies((ability) => ability.can('read', 'User'))
   @ApiGetUser()
   findOne(@Param('id') id: string) {
     return this.usersService.findOne(id);
   }
 
   @Post()
-  @Roles(Role.ADMIN)
+  @CheckPolicies((ability) => ability.can('create', 'User'))
   @ApiCreateUser()
   create(@Body() createUserDto: CreateUserDto) {
     return this.usersService.create(createUserDto);
   }
 
   @Patch(':id')
-  @Roles(Role.ADMIN)
+  @CheckPolicies((ability) => ability.can('update', 'User'))
   @ApiUpdateUser()
   update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
     return this.usersService.update(id, updateUserDto);
   }
 
-  @Patch(':id/password')
-  @Roles(Role.ADMIN)
-  @ApiUpdateUserPassword()
-  updatePassword(
-    @Param('id') id: string,
-    @Body() { password }: UpdatePasswordDto,
-  ) {
-    return this.usersService.updatePassword(id, password);
-  }
-
+  // Precisa vir antes de ':id/password' — senão o Nest casa 'me' como :id
+  // e essa rota nunca é alcançada.
   @Patch('me/password')
   @ApiUpdateMyPassword()
   updateMyPassword(
@@ -87,8 +78,18 @@ export class UsersController {
     return this.usersService.updatePassword(user.id, password);
   }
 
+  @Patch(':id/password')
+  @CheckPolicies((ability) => ability.can('update', 'User'))
+  @ApiUpdateUserPassword()
+  updatePassword(
+    @Param('id') id: string,
+    @Body() { password }: UpdatePasswordDto,
+  ) {
+    return this.usersService.updatePassword(id, password);
+  }
+
   @Delete(':id')
-  @Roles(Role.ADMIN)
+  @CheckPolicies((ability) => ability.can('delete', 'User'))
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiRemoveUser()
   remove(@Param('id') id: string) {
@@ -96,7 +97,7 @@ export class UsersController {
   }
 
   @Patch(':id/deactivate')
-  @Roles(Role.ADMIN)
+  @CheckPolicies((ability) => ability.can('update', 'User'))
   @ApiDeactivateUser()
   deactivate(@Param('id') id: string) {
     return this.usersService.deactivate(id);

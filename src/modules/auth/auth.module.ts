@@ -6,7 +6,8 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { PrismaModule } from '../../infra/prisma/prisma.module';
-import { RolesGuard } from './guards/roles.guard';
+import { CaslAbilityFactory } from './casl/casl-ability.factory';
+import { PoliciesGuard } from './casl/policies.guard';
 
 @Module({
   imports: [
@@ -29,12 +30,19 @@ import { RolesGuard } from './guards/roles.guard';
   providers: [
     AuthService,
     JwtAuthGuard,
-    RolesGuard,
+    CaslAbilityFactory,
+    PoliciesGuard,
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
     },
   ],
-  exports: [AuthService, JwtAuthGuard, RolesGuard, JwtModule],
+  exports: [
+    AuthService,
+    JwtAuthGuard,
+    CaslAbilityFactory,
+    PoliciesGuard,
+    JwtModule,
+  ],
 })
 export class AuthModule {}
