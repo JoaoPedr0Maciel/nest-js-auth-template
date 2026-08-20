@@ -31,11 +31,12 @@ export class HttpExceptionFilter implements ExceptionFilter {
         : (body?.message ?? 'Internal server error');
 
     const code = typeof body === 'object' ? body?.code : undefined;
+    const isForbidden = status === 403;
 
     response.status(status).json({
       statusCode: status,
       code,
-      message,
+      message: isForbidden ? 'Acesso não autorizado' : message,
       path: request.url,
       timestamp: new Date().toISOString(),
     });

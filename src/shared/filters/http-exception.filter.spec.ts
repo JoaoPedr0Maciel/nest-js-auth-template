@@ -1,4 +1,8 @@
-import { ArgumentsHost, ConflictException } from '@nestjs/common';
+import {
+  ArgumentsHost,
+  ConflictException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { HttpExceptionFilter } from './http-exception.filter';
 
 describe('HttpExceptionFilter', () => {
@@ -46,6 +50,18 @@ describe('HttpExceptionFilter', () => {
     expect(status).toHaveBeenCalledWith(409);
     expect(json).toHaveBeenCalledWith(
       expect.objectContaining({ message: 'conflict', code: undefined }),
+    );
+  });
+
+  it('substitui a message por uma mensagem genérica em PT-BR quando o status é 403, mesmo com body customizado', () => {
+    filter.catch(new ForbiddenException('Forbidden resource'), host);
+
+    expect(status).toHaveBeenCalledWith(403);
+    expect(json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusCode: 403,
+        message: 'Acesso não autorizado',
+      }),
     );
   });
 
